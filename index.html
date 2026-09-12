@@ -467,6 +467,8 @@
             document.getElementById('checkName').value = '';
             document.getElementById('checkEmail').value = '';
         }
+
+        function getData() {
             const data = localStorage.getItem(DB_KEY);
             return data ? JSON.parse(data) : { gameweeks: {}, entries: [], eliminated: [] };
         }
