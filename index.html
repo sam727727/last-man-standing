@@ -242,6 +242,9 @@
                         <input type="datetime-local" id="firstKickoff">
                     </div>
                 </div>
+                <div class="button-group" style="margin-bottom: 20px;">
+                    <button class="secondary-btn" onclick="endGameweek()">✓ End Current Gameweek</button>
+                </div>
                 <div class="form-group">
                     <label>Add Fixture</label>
                     <div style="display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 8px;">
@@ -274,6 +277,23 @@
                 <div id="entryStatus"></div>
                 <div id="playerForm"></div>
             </div>
+            
+            <div class="section">
+                <h2>Check My Status</h2>
+                <p style="margin-bottom: 16px; color: #666; font-size: 14px;">Enter your name and email to see your picks and current status</p>
+                <div style="max-width: 400px;">
+                    <div class="form-group">
+                        <label>Name</label>
+                        <input type="text" id="checkName" placeholder="Your name">
+                    </div>
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="checkEmail" placeholder="your@email.com">
+                    </div>
+                    <button onclick="checkMyStatus()">Check Status</button>
+                </div>
+                <div id="statusResult" style="margin-top: 20px;"></div>
+            </div>
         </div>
 
         <!-- STANDINGS TAB -->
@@ -294,6 +314,11 @@
                         <div class="stat-label">Eliminated</div>
                     </div>
                 </div>
+            </div>
+            
+            <div class="section">
+                <h2>Team Selection Breakdown</h2>
+                <div id="teamChart" style="min-height: 300px;"></div>
             </div>
 
             <div class="section">
@@ -396,7 +421,52 @@
             setInterval(render, 1000);
         });
 
-        function getData() {
+        function endGameweek() {
+            if (confirm('End this gameweek? Matches for the next gameweek will then be visible to entrants.')) {
+                const currentGw = parseInt(document.getElementById('gameweekNum').value);
+                document.getElementById('gameweekNum').value = currentGw + 1;
+                document.getElementById('firstKickoff').value = '';
+                document.getElementById('homeTeam').value = '';
+                document.getElementById('awayTeam').value = '';
+                document.getElementById('kickoffTime').value = '';
+                alert('✓ Gameweek ' + currentGw + ' ended. GW' + (currentGw + 1) + ' is now active.');
+                render();
+            }
+        }
+
+        function checkMyStatus() {
+            const name = document.getElementById('checkName').value.trim();
+            const email = document.getElementById('checkEmail').value.trim();
+            const statusResult = document.getElementById('statusResult');
+
+            if (!name || !email) {
+                statusResult.innerHTML = '<div class="alert alert-danger">Please enter both name and email</div>';
+                return;
+            }
+
+            const data = getData();
+            const playerEntries = data.entries.filter(e => e.name.toLowerCase() === name.toLowerCase() && e.email.toLowerCase() === email.toLowerCase());
+
+            if (playerEntries.length === 0) {
+                statusResult.innerHTML = '<div class="alert alert-danger">No entries found for that name and email</div>';
+                return;
+            }
+
+            let html = '';
+            playerEntries.forEach(entry => {
+                const isEliminated = data.eliminated.includes(entry.id);
+                const statusText = isEliminated ? 'ELIMINATED' : 'IN';
+                const statusColor = isEliminated ? '#e74c3c' : '#27ae60';
+                html += '<div style="padding: 12px; background: #f9f9f9; border-radius: 6px; border-left: 4px solid ' + statusColor + '; margin-bottom: 12px;">';
+                html += '<div style="font-weight: 600; color: ' + statusColor + '; margin-bottom: 4px;">GW' + entry.gameweek + ': ' + statusText + '</div>';
+                html += '<div style="font-size: 14px;">Picked: <strong>' + entry.pick + '</strong></div>';
+                html += '</div>';
+            });
+
+            statusResult.innerHTML = '<div class="alert alert-success" style="margin-bottom: 12px;">Found ' + playerEntries.length + ' entry/entries</div>' + html;
+            document.getElementById('checkName').value = '';
+            document.getElementById('checkEmail').value = '';
+        }
             const data = localStorage.getItem(DB_KEY);
             return data ? JSON.parse(data) : { gameweeks: {}, entries: [], eliminated: [] };
         }
@@ -406,7 +476,43 @@
             setTimeout(() => render(), 100);
         }
 
-        function addFixture() {
+        function generateTeamChart(entries, data, gwData) {
+            const teamChart = document.getElementById('teamChart');
+            if (!teamChart) return;
+
+            const now = new Date();
+            const closeTime = gwData && gwData.firstKickoff ? new Date(new Date(gwData.firstKickoff).getTime() - 90 * 60000) : null;
+            const isOpen = !closeTime || now < closeTime;
+
+            if (isOpen || entries.length === 0) {
+                teamChart.innerHTML = '<p style="color: #999;">Chart will appear once the entry period closes.</p>';
+                return;
+            }
+
+            // Count picks by team
+            const teamCounts = {};
+            entries.forEach(e => {
+                teamCounts[e.pick] = (teamCounts[e.pick] || 0) + 1;
+            });
+
+            const teams = Object.keys(teamCounts).sort();
+            const maxCount = Math.max(...Object.values(teamCounts));
+
+            let html = '<div style="display: flex; flex-direction: column; gap: 12px;">';
+            teams.forEach(team => {
+                const count = teamCounts[team];
+                const percentage = (count / maxCount) * 100;
+                html += '<div>';
+                html += '<div style="font-weight: 500; margin-bottom: 4px; font-size: 14px;">' + team + '</div>';
+                html += '<div style="background: #f0f0f0; border-radius: 4px; height: 24px; overflow: hidden;">';
+                html += '<div style="background: #0066cc; height: 100%; width: ' + percentage + '%; display: flex; align-items: center; padding-left: 8px; color: white; font-weight: 600; font-size: 12px;">' + count + '</div>';
+                html += '</div>';
+                html += '</div>';
+            });
+            html += '</div>';
+
+            teamChart.innerHTML = html;
+        }
             const home = document.getElementById('homeTeam').value.trim();
             const away = document.getElementById('awayTeam').value.trim();
             const kickoff = document.getElementById('kickoffTime').value;
@@ -655,17 +761,26 @@
                 if (playersIn) playersIn.textContent = entriesIn.length;
                 if (playersOut) playersOut.textContent = entriesOut.length;
 
-                // Update entries list
+                // Generate team chart
+                generateTeamChart(entries, data, gwData);
+
+                // Update entries list - only show after deadline has passed
                 const entriesList = document.getElementById('entriesList');
                 if (entriesList) {
-                    if (entries.length > 0) {
+                    const now = new Date();
+                    const closeTime = gwData && gwData.firstKickoff ? new Date(new Date(gwData.firstKickoff).getTime() - 90 * 60000) : null;
+                    const isOpen = !closeTime || now < closeTime;
+
+                    if (isOpen) {
+                        entriesList.innerHTML = '<p style="color: #999;">Entries are still open. Picks will be revealed once the submission deadline passes.</p>';
+                    } else if (entries.length > 0) {
                         let entriesHtml = '';
                         entries.forEach(e => {
                             const statusText = data.eliminated.includes(e.id) ? 'ELIMINATED' : 'IN';
                             const statusColor = data.eliminated.includes(e.id) ? '#e74c3c' : '#27ae60';
                             entriesHtml += '<div class="entry ' + (data.eliminated.includes(e.id) ? 'eliminated' : '') + '">';
                             entriesHtml += '<div class="entry-info"><div class="entry-name">' + e.name + '</div>';
-                            entriesHtml += '<div class="entry-details">' + e.email + ' • Picked: <strong>' + e.pick + '</strong></div></div>';
+                            entriesHtml += '<div class="entry-details">Picked: <strong>' + e.pick + '</strong></div></div>';
                             entriesHtml += '<div style="text-align: right; font-weight: 500; color: ' + statusColor + ';">' + statusText + '</div>';
                             entriesHtml += '</div>';
                         });
