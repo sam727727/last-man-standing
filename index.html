@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HSM Last Man Standing 26/27</title>
+    <title>Last Man Standing</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -218,14 +218,13 @@
 </head>
 <body>
     <div class="container">
-        <h1>HSM Last Man Standing 26/27</h1>
+        <h1>⚽ Last Man Standing</h1>
         
         <div class="tabs no-print">
             <button class="tab-btn admin-tab-btn" data-tab="admin">Admin</button>
             <button class="tab-btn active" data-tab="player">Player Entry</button>
             <button class="tab-btn" data-tab="standings">Standings</button>
-            <button class="tab-btn" data-tab="howitworks">How It Works</button>
-            <button class="secondary-btn" id="loginBtn" style="padding: 12px 16px; margin-left: auto;" onclick="showLoginPrompt()">🔐 Admin Login</button>
+            <button class="tab-btn secondary-btn" id="loginBtn" onclick="showLoginPrompt()">🔐 Admin Login</button>
         </div>
 
         <!-- ADMIN TAB -->
@@ -241,9 +240,6 @@
                         <label>First Kickoff Time (entry closes 90 mins before)</label>
                         <input type="datetime-local" id="firstKickoff">
                     </div>
-                </div>
-                <div class="button-group" style="margin-bottom: 20px;">
-                    <button class="secondary-btn" onclick="endGameweek()">✓ End Current Gameweek</button>
                 </div>
                 <div class="form-group">
                     <label>Add Fixture</label>
@@ -277,23 +273,6 @@
                 <div id="entryStatus"></div>
                 <div id="playerForm"></div>
             </div>
-            
-            <div class="section">
-                <h2>Check My Status</h2>
-                <p style="margin-bottom: 16px; color: #666; font-size: 14px;">Enter your name and email to see your picks and current status</p>
-                <div style="max-width: 400px;">
-                    <div class="form-group">
-                        <label>Name</label>
-                        <input type="text" id="checkName" placeholder="Your name">
-                    </div>
-                    <div class="form-group">
-                        <label>Email</label>
-                        <input type="email" id="checkEmail" placeholder="your@email.com">
-                    </div>
-                    <button onclick="checkMyStatus()">Check Status</button>
-                </div>
-                <div id="statusResult" style="margin-top: 20px;"></div>
-            </div>
         </div>
 
         <!-- STANDINGS TAB -->
@@ -315,67 +294,10 @@
                     </div>
                 </div>
             </div>
-            
-            <div class="section">
-                <h2>Team Selection Breakdown</h2>
-                <div id="teamChart" style="min-height: 300px;"></div>
-            </div>
 
             <div class="section">
                 <h2>Entries This Gameweek</h2>
                 <div id="entriesList"></div>
-            </div>
-        </div>
-
-        <!-- HOW IT WORKS TAB -->
-        <div class="tab-content" id="howitworks">
-            <div class="section">
-                <h2>How It Works</h2>
-                
-                <div style="margin-bottom: 24px;">
-                    <h3 style="font-size: 16px; margin-bottom: 12px;">The Game</h3>
-                    <p style="margin-bottom: 12px;">My son's football team are running a Premier League Last Man Standing to raise funds.</p>
-                    <p style="margin-bottom: 12px;"><strong>LMS is simple</strong> – each gameweek in the Premier League you need to choose a team.</p>
-                    
-                    <p style="margin-bottom: 8px;"><strong>If you choose a HOME team:</strong> They need to WIN to get you through to the next round. If they DRAW or LOSE, you are unfortunately out.</p>
-                    
-                    <p style="margin-bottom: 12px;"><strong>If you choose an AWAY team:</strong> They need to WIN or DRAW for you to get through to the next round. If they LOSE, you are out.</p>
-                    
-                    <p style="margin-bottom: 12px;"><strong>Team selection rule:</strong> You can only pick a team <em>once</em>. If you choose Arsenal in GW1, then you can't use them again until you have used every team at least once.</p>
-                    
-                    <p>The rounds continue until there is just one person left standing.</p>
-                </div>
-
-                <div style="margin-bottom: 24px;">
-                    <h3 style="font-size: 16px; margin-bottom: 12px;">Special Rules</h3>
-                    <p style="margin-bottom: 12px;"><strong>Splitting the pot:</strong> If there are four or fewer people left in the game, they have the opportunity to split the pot. However, every person must agree via a secret ballot. If it's not unanimous, then the gameweek is played.</p>
-                    
-                    <p style="margin-bottom: 12px;"><strong>Everyone knocked out:</strong> If everyone is knocked out before there's a winner, the prize pot is rolled over and a new gameweek starts where all players (old and new) can reinvest, giving us a bumper pot.</p>
-                </div>
-
-                <div style="margin-bottom: 24px;">
-                    <h3 style="font-size: 16px; margin-bottom: 12px;">Entry & Payments</h3>
-                    <p style="margin-bottom: 12px;"><strong>Entry fee: £10</strong></p>
-                    <p style="margin-bottom: 12px;"><strong>Bank details for payment:</strong></p>
-                    <p style="margin: 0; font-weight: 500;">Sam Brown</p>
-                    <p style="margin: 0; font-weight: 500;">Sort Code: 04 00 04</p>
-                    <p style="margin-bottom: 12px; font-weight: 500;">Account: 57525072</p>
-                    
-                    <p style="margin-bottom: 12px;"><strong>Submission deadline:</strong> Picks must be submitted before the entry window closes for each gameweek.</p>
-                    
-                    <p><strong>Late submissions:</strong> If you don't submit on time for a future gameweek, you'll automatically get the third-most chosen team.</p>
-                </div>
-
-                <div style="margin-bottom: 24px;">
-                    <h3 style="font-size: 16px; margin-bottom: 12px;">Prize Distribution</h3>
-                    <p style="margin-bottom: 8px;"><strong>The winner gets 50%</strong> of the total takings.</p>
-                    <p><strong>The remaining 50%</strong> goes to Horsforth St Margarets.</p>
-                </div>
-
-                <div style="background: #f0f8ff; padding: 16px; border-radius: 6px; border-left: 4px solid #0066cc;">
-                    <p style="margin-bottom: 8px;"><strong>Any issues or questions?</strong></p>
-                    <p style="margin: 0;">Drop an email to <strong>sam727727@gmail.com</strong></p>
-                </div>
             </div>
         </div>
     </div>
@@ -389,84 +311,28 @@
         }
 
         function showLoginPrompt() {
-            console.log('Login button clicked');
             const password = prompt('Enter admin password:');
-            console.log('Password entered:', password);
             if (password === ADMIN_PASSWORD) {
-                console.log('Password correct!');
                 sessionStorage.setItem('adminLoggedIn', 'true');
-                loginSuccess();
+                document.querySelector('.admin-tab-btn').style.display = 'block';
+                document.getElementById('loginBtn').style.display = 'none';
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                document.querySelector('.admin-tab-btn').classList.add('active');
+                document.getElementById('admin').classList.add('active');
             } else if (password !== null) {
                 alert('❌ Incorrect password');
             }
         }
 
-        function loginSuccess() {
-            document.querySelector('.admin-tab-btn').style.display = 'block';
-            document.getElementById('loginBtn').style.display = 'none';
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            document.querySelector('.admin-tab-btn').classList.add('active');
-            document.getElementById('admin').classList.add('active');
-            console.log('Admin panel shown');
-        }
-
         window.addEventListener('load', function() {
-            console.log('Page loaded, checking admin status');
             if (isAdminLoggedIn()) {
-                console.log('Already logged in');
-                loginSuccess();
+                document.querySelector('.admin-tab-btn').style.display = 'block';
+                document.getElementById('loginBtn').style.display = 'none';
             }
             render();
             setInterval(render, 1000);
         });
-
-        function endGameweek() {
-            if (confirm('End this gameweek? Matches for the next gameweek will then be visible to entrants.')) {
-                const currentGw = parseInt(document.getElementById('gameweekNum').value);
-                document.getElementById('gameweekNum').value = currentGw + 1;
-                document.getElementById('firstKickoff').value = '';
-                document.getElementById('homeTeam').value = '';
-                document.getElementById('awayTeam').value = '';
-                document.getElementById('kickoffTime').value = '';
-                alert('✓ Gameweek ' + currentGw + ' ended. GW' + (currentGw + 1) + ' is now active.');
-                render();
-            }
-        }
-
-        function checkMyStatus() {
-            const name = document.getElementById('checkName').value.trim();
-            const email = document.getElementById('checkEmail').value.trim();
-            const statusResult = document.getElementById('statusResult');
-
-            if (!name || !email) {
-                statusResult.innerHTML = '<div class="alert alert-danger">Please enter both name and email</div>';
-                return;
-            }
-
-            const data = getData();
-            const playerEntries = data.entries.filter(e => e.name.toLowerCase() === name.toLowerCase() && e.email.toLowerCase() === email.toLowerCase());
-
-            if (playerEntries.length === 0) {
-                statusResult.innerHTML = '<div class="alert alert-danger">No entries found for that name and email</div>';
-                return;
-            }
-
-            let html = '';
-            playerEntries.forEach(entry => {
-                const isEliminated = data.eliminated.includes(entry.id);
-                const statusText = isEliminated ? 'ELIMINATED' : 'IN';
-                const statusColor = isEliminated ? '#e74c3c' : '#27ae60';
-                html += '<div style="padding: 12px; background: #f9f9f9; border-radius: 6px; border-left: 4px solid ' + statusColor + '; margin-bottom: 12px;">';
-                html += '<div style="font-weight: 600; color: ' + statusColor + '; margin-bottom: 4px;">GW' + entry.gameweek + ': ' + statusText + '</div>';
-                html += '<div style="font-size: 14px;">Picked: <strong>' + entry.pick + '</strong></div>';
-                html += '</div>';
-            });
-
-            statusResult.innerHTML = '<div class="alert alert-success" style="margin-bottom: 12px;">Found ' + playerEntries.length + ' entry/entries</div>' + html;
-            document.getElementById('checkName').value = '';
-            document.getElementById('checkEmail').value = '';
-        }
 
         function getData() {
             const data = localStorage.getItem(DB_KEY);
@@ -478,43 +344,7 @@
             setTimeout(() => render(), 100);
         }
 
-        function generateTeamChart(entries, data, gwData) {
-            const teamChart = document.getElementById('teamChart');
-            if (!teamChart) return;
-
-            const now = new Date();
-            const closeTime = gwData && gwData.firstKickoff ? new Date(new Date(gwData.firstKickoff).getTime() - 90 * 60000) : null;
-            const isOpen = !closeTime || now < closeTime;
-
-            if (isOpen || entries.length === 0) {
-                teamChart.innerHTML = '<p style="color: #999;">Chart will appear once the entry period closes.</p>';
-                return;
-            }
-
-            // Count picks by team
-            const teamCounts = {};
-            entries.forEach(e => {
-                teamCounts[e.pick] = (teamCounts[e.pick] || 0) + 1;
-            });
-
-            const teams = Object.keys(teamCounts).sort();
-            const maxCount = Math.max(...Object.values(teamCounts));
-
-            let html = '<div style="display: flex; flex-direction: column; gap: 12px;">';
-            teams.forEach(team => {
-                const count = teamCounts[team];
-                const percentage = (count / maxCount) * 100;
-                html += '<div>';
-                html += '<div style="font-weight: 500; margin-bottom: 4px; font-size: 14px;">' + team + '</div>';
-                html += '<div style="background: #f0f0f0; border-radius: 4px; height: 24px; overflow: hidden;">';
-                html += '<div style="background: #0066cc; height: 100%; width: ' + percentage + '%; display: flex; align-items: center; padding-left: 8px; color: white; font-weight: 600; font-size: 12px;">' + count + '</div>';
-                html += '</div>';
-                html += '</div>';
-            });
-            html += '</div>';
-
-            teamChart.innerHTML = html;
-        }
+        function addFixture() {
             const home = document.getElementById('homeTeam').value.trim();
             const away = document.getElementById('awayTeam').value.trim();
             const kickoff = document.getElementById('kickoffTime').value;
@@ -573,11 +403,10 @@
         function submitEntry() {
             const name = document.getElementById('playerName').value.trim();
             const email = document.getElementById('playerEmail').value.trim();
-            const pickRadio = document.querySelector('input[name="teamPick"]:checked');
-            const pick = pickRadio ? pickRadio.value : '';
+            const pick = document.getElementById('teamPick').value;
 
             if (!name || !email || !pick) {
-                alert('Please fill in all fields and select a team');
+                alert('Please fill in all fields');
                 return;
             }
 
@@ -594,7 +423,7 @@
             saveData(data);
             document.getElementById('playerName').value = '';
             document.getElementById('playerEmail').value = '';
-            document.querySelectorAll('input[name="teamPick"]').forEach(r => r.checked = false);
+            document.getElementById('teamPick').value = '';
             alert('✓ Entry submitted! Good luck!');
         }
 
@@ -656,11 +485,7 @@
                 doc.text(entry.name, 20, y);
                 doc.text(entry.email, 80, y);
                 doc.text(entry.pick, 140, y);
-                if (eliminated === 'OUT') {
-                    doc.setTextColor(192, 0, 0);
-                } else {
-                    doc.setTextColor(0, 128, 0);
-                }
+                doc.setTextColor(eliminated === 'OUT' ? 192, 0, 0 : 0, 128, 0);
                 doc.text(eliminated, 180, y);
                 doc.setTextColor(0);
                 y += 8;
@@ -683,113 +508,78 @@
                 const entriesIn = entries.filter(e => !data.eliminated.includes(e.id));
                 const entriesOut = entries.filter(e => data.eliminated.includes(e.id));
 
-                // Only update fixtures list if it exists and gameweek has changed
                 const fixturesList = document.getElementById('fixturesList');
-                if (fixturesList) {
-                    if (gwData && gwData.fixtures && gwData.fixtures.length > 0) {
-                        let html = '<div class="fixture-header"><div>Home</div><div>Away</div><div>Kickoff</div><div>Result</div><div></div></div>';
-                        gwData.fixtures.forEach((f, i) => {
-                            html += '<div class="fixture ' + (f.result ? 'result-set' : '') + '">';
-                            html += '<div>' + f.home + '</div>';
-                            html += '<div>' + f.away + '</div>';
-                            html += '<div style="font-size: 13px; color: #666;">' + new Date(f.kickoff).toLocaleString() + '</div>';
-                            html += '<div class="result-buttons">';
-                            html += '<button onclick="setResult(' + gw + ', ' + i + ', \'home\')" style="background: ' + (f.result === 'home' ? '#27ae60' : '#e0e0e0') + '; color: ' + (f.result === 'home' ? 'white' : '#333') + ';">HW</button>';
-                            html += '<button onclick="setResult(' + gw + ', ' + i + ', \'away\')" style="background: ' + (f.result === 'away' ? '#27ae60' : '#e0e0e0') + '; color: ' + (f.result === 'away' ? 'white' : '#333') + ';">AD</button>';
-                            html += '</div></div>';
-                        });
-                        fixturesList.innerHTML = html;
-                    } else {
-                        fixturesList.innerHTML = '<p style="color: #999;">No fixtures added yet</p>';
-                    }
+                if (gwData && gwData.fixtures && gwData.fixtures.length > 0) {
+                    let html = '<div class="fixture-header"><div>Home</div><div>Away</div><div>Kickoff</div><div>Result</div><div></div></div>';
+                    gwData.fixtures.forEach((f, i) => {
+                        html += '<div class="fixture ' + (f.result ? 'result-set' : '') + '">';
+                        html += '<div>' + f.home + '</div>';
+                        html += '<div>' + f.away + '</div>';
+                        html += '<div style="font-size: 13px; color: #666;">' + new Date(f.kickoff).toLocaleString() + '</div>';
+                        html += '<div class="result-buttons">';
+                        html += '<button onclick="setResult(' + gw + ', ' + i + ', \'home\')" style="background: ' + (f.result === 'home' ? '#27ae60' : '#e0e0e0') + '; color: ' + (f.result === 'home' ? 'white' : '#333') + ';">HW</button>';
+                        html += '<button onclick="setResult(' + gw + ', ' + i + ', \'away\')" style="background: ' + (f.result === 'away' ? '#27ae60' : '#e0e0e0') + '; color: ' + (f.result === 'away' ? 'white' : '#333') + ';">AD</button>';
+                        html += '</div></div>';
+                    });
+                    fixturesList.innerHTML = html;
+                } else {
+                    fixturesList.innerHTML = '<p style="color: #999;">No fixtures added yet</p>';
                 }
 
-                // Update entry status and player form only if gameweek data changes
                 const playerForm = document.getElementById('playerForm');
                 const entryStatus = document.getElementById('entryStatus');
-                if (playerForm && entryStatus) {
-                    const now = new Date();
-                    const closeTime = gwData && gwData.firstKickoff ? new Date(new Date(gwData.firstKickoff).getTime() - 90 * 60000) : null;
-                    const isOpen = !closeTime || now < closeTime;
+                const now = new Date();
+                const closeTime = gwData && gwData.firstKickoff ? new Date(new Date(gwData.firstKickoff).getTime() - 90 * 60000) : null;
+                const isOpen = !closeTime || now < closeTime;
 
-                    if (!isOpen) {
-                        entryStatus.innerHTML = '<div class="alert alert-danger">❌ Entry is closed (closes 90 minutes before first match)</div>';
-                        playerForm.innerHTML = '';
-                    } else {
-                        entryStatus.innerHTML = '<div class="alert alert-info">✓ Entry open' + (closeTime ? ' until ' + closeTime.toLocaleString() : '') + '</div>';
-                        
-                        // Only regenerate form if it's empty (first load)
-                        if (playerForm.innerHTML === '') {
-                            let formHtml = '<div style="max-width: 600px;"><div class="form-group"><label>Your Name</label><input type="text" id="playerName" placeholder="e.g. John Smith"></div>';
-                            formHtml += '<div class="form-group"><label>Email</label><input type="email" id="playerEmail" placeholder="your@email.com"></div>';
-                            formHtml += '<div class="form-group"><label style="font-weight: 600; margin-bottom: 16px;">Pick a team to advance (home wins OR away draws/wins)</label>';
-                            
-                            if (gwData && gwData.fixtures && gwData.fixtures.length > 0) {
-                                formHtml += '<div style="display: flex; flex-direction: column; gap: 16px;">';
-                                gwData.fixtures.forEach((f, i) => {
-                                    formHtml += '<div style="border: 2px solid #eee; border-radius: 8px; padding: 16px; background: white;">';
-                                    formHtml += '<div style="display: grid; grid-template-columns: 1fr auto 1fr; gap: 16px; align-items: center; margin-bottom: 12px;">';
-                                    formHtml += '<div style="text-align: right;"><strong style="font-size: 16px;">' + f.home + '</strong><br><span style="font-size: 12px; color: #666;">HOME</span></div>';
-                                    formHtml += '<div style="text-align: center; color: #999; font-weight: 500;">vs</div>';
-                                    formHtml += '<div style="text-align: left;"><strong style="font-size: 16px;">' + f.away + '</strong><br><span style="font-size: 12px; color: #666;">AWAY</span></div>';
-                                    formHtml += '</div>';
-                                    formHtml += '<div style="border-top: 1px solid #eee; padding-top: 12px; display: flex; flex-direction: column; gap: 8px;">';
-                                    formHtml += '<label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 8px; border-radius: 4px;"><input type="radio" name="teamPick" value="' + f.home + '" id="pick_' + i + '_home" style="cursor: pointer;"><span>' + f.home + ' to win at home</span></label>';
-                                    formHtml += '<label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 8px; border-radius: 4px;"><input type="radio" name="teamPick" value="' + f.away + '" id="pick_' + i + '_away" style="cursor: pointer;"><span>' + f.away + ' to draw or win away</span></label>';
-                                    formHtml += '</div>';
-                                    formHtml += '</div>';
-                                });
-                                formHtml += '</div>';
-                            } else {
-                                formHtml += '<p style="color: #999;">No fixtures available yet. Check back soon!</p>';
-                            }
-                            
-                            formHtml += '</div>';
-                            formHtml += '<button onclick="submitEntry()" style="margin-top: 20px;">Submit Entry</button>';
-                            if (entries.length > 0) {
-                                formHtml += '<p style="margin-top: 12px; font-size: 13px; color: #666;">' + entries.length + ' entries so far this gameweek</p>';
-                            }
-                            formHtml += '</div>';
-                            playerForm.innerHTML = formHtml;
-                        }
+                if (!isOpen) {
+                    entryStatus.innerHTML = '<div class="alert alert-danger">❌ Entry is closed (closes 90 minutes before first match)</div>';
+                    playerForm.innerHTML = '';
+                } else {
+                    entryStatus.innerHTML = '<div class="alert alert-info">✓ Entry open' + (closeTime ? ' until ' + closeTime.toLocaleString() : '') + '</div>';
+                    
+                    const teams = new Set();
+                    if (gwData && gwData.fixtures) {
+                        gwData.fixtures.forEach(f => {
+                            teams.add(f.home);
+                            teams.add(f.away);
+                        });
                     }
+
+                    let formHtml = '<div style="max-width: 400px;"><div class="form-group"><label>Your Name</label><input type="text" id="playerName" placeholder="e.g. John Smith"></div>';
+                    formHtml += '<div class="form-group"><label>Email</label><input type="email" id="playerEmail" placeholder="your@email.com"></div>';
+                    formHtml += '<div class="form-group"><label>Pick a team (home team wins OR away team draws/wins)</label><select id="teamPick"><option value="">-- Select team --</option>';
+                    Array.from(teams).sort().forEach(t => {
+                        formHtml += '<option value="' + t + '">' + t + '</option>';
+                    });
+                    formHtml += '</select></div>';
+                    formHtml += '<button onclick="submitEntry()">Submit Entry</button>';
+                    if (entries.length > 0) {
+                        formHtml += '<p style="margin-top: 12px; font-size: 13px; color: #666;">' + entries.length + ' entries so far this gameweek</p>';
+                    }
+                    formHtml += '</div>';
+                    playerForm.innerHTML = formHtml;
                 }
 
-                // Update stats
-                const totalPlayers = document.getElementById('totalPlayers');
-                const playersIn = document.getElementById('playersIn');
-                const playersOut = document.getElementById('playersOut');
-                if (totalPlayers) totalPlayers.textContent = entries.length;
-                if (playersIn) playersIn.textContent = entriesIn.length;
-                if (playersOut) playersOut.textContent = entriesOut.length;
+                document.getElementById('totalPlayers').textContent = entries.length;
+                document.getElementById('playersIn').textContent = entriesIn.length;
+                document.getElementById('playersOut').textContent = entriesOut.length;
 
-                // Generate team chart
-                generateTeamChart(entries, data, gwData);
-
-                // Update entries list - only show after deadline has passed
                 const entriesList = document.getElementById('entriesList');
-                if (entriesList) {
-                    const now = new Date();
-                    const closeTime = gwData && gwData.firstKickoff ? new Date(new Date(gwData.firstKickoff).getTime() - 90 * 60000) : null;
-                    const isOpen = !closeTime || now < closeTime;
-
-                    if (isOpen) {
-                        entriesList.innerHTML = '<p style="color: #999;">Entries are still open. Picks will be revealed once the submission deadline passes.</p>';
-                    } else if (entries.length > 0) {
-                        let entriesHtml = '';
-                        entries.forEach(e => {
-                            const statusText = data.eliminated.includes(e.id) ? 'ELIMINATED' : 'IN';
-                            const statusColor = data.eliminated.includes(e.id) ? '#e74c3c' : '#27ae60';
-                            entriesHtml += '<div class="entry ' + (data.eliminated.includes(e.id) ? 'eliminated' : '') + '">';
-                            entriesHtml += '<div class="entry-info"><div class="entry-name">' + e.name + '</div>';
-                            entriesHtml += '<div class="entry-details">Picked: <strong>' + e.pick + '</strong></div></div>';
-                            entriesHtml += '<div style="text-align: right; font-weight: 500; color: ' + statusColor + ';">' + statusText + '</div>';
-                            entriesHtml += '</div>';
-                        });
-                        entriesList.innerHTML = entriesHtml;
-                    } else {
-                        entriesList.innerHTML = '<p style="color: #999;">No entries yet</p>';
-                    }
+                if (entries.length > 0) {
+                    let entriesHtml = '';
+                    entries.forEach(e => {
+                        const statusText = data.eliminated.includes(e.id) ? 'ELIMINATED' : 'IN';
+                        const statusColor = data.eliminated.includes(e.id) ? '#e74c3c' : '#27ae60';
+                        entriesHtml += '<div class="entry ' + (data.eliminated.includes(e.id) ? 'eliminated' : '') + '">';
+                        entriesHtml += '<div class="entry-info"><div class="entry-name">' + e.name + '</div>';
+                        entriesHtml += '<div class="entry-details">' + e.email + ' • Picked: <strong>' + e.pick + '</strong></div></div>';
+                        entriesHtml += '<div style="text-align: right; font-weight: 500; color: ' + statusColor + ';">' + statusText + '</div>';
+                        entriesHtml += '</div>';
+                    });
+                    entriesList.innerHTML = entriesHtml;
+                } else {
+                    entriesList.innerHTML = '<p style="color: #999;">No entries yet</p>';
                 }
             } catch (err) {
                 console.error('Render error:', err);
