@@ -1,0 +1,1157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HSM Last Man Standing 26/27</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<!--
+  SETUP REQUIRED — this app stores its data in a free Firebase (Firestore) project
+  so that everyone visiting the site shares the same gameweeks, picks and standings.
+
+  1. Go to https://console.firebase.google.com, sign in, click "Add project" (free).
+  2. In the project, go to Build > Firestore Database > Create database > Start in
+     "test mode" (or lock down rules yourself later — see the Admin tab's Data Store
+     note once this is running).
+  3. Go to Project settings (gear icon) > General > "Your apps" > click the </> (web)
+     icon, register an app (nickname can be anything), and copy the firebaseConfig
+     object it gives you.
+  4. Paste those values into the firebaseConfig object inside the <script type="module">
+     block below, replacing the placeholders.
+  5. Commit/upload this file to your GitHub repo (e.g. as index.html) and enable
+     GitHub Pages on the repo.
+-->
+
+<style>
+  :root{
+    --pitch:#163B2C;
+    --pitch-dark:#0E2A1F;
+    --chalk:#F6F3EA;
+    --card:#FFFFFF;
+    --ink:#1B1B16;
+    --ink-soft:#5B5A4E;
+    --line:#E1DCC8;
+    --gold:#B8892B;
+    --gold-soft:#F1E4C4;
+    --brick:#8C3B32;
+    --brick-soft:#F3E0DB;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--chalk);
+    color:var(--ink);
+    font-family:'Inter',sans-serif;
+    font-size:15px;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3,.display{
+    font-family:'Oswald',sans-serif;
+    font-weight:600;
+    letter-spacing:0.01em;
+    margin:0;
+  }
+  header.top{
+    background:linear-gradient(180deg,var(--pitch) 0%, var(--pitch-dark) 100%);
+    color:#fff;
+    padding:22px 20px 0;
+  }
+  .brand{
+    max-width:760px;
+    margin:0 auto;
+  }
+  .brand h1{
+    font-size:26px;
+    text-transform:uppercase;
+    color:#fff;
+  }
+  .brand p{
+    margin:4px 0 18px;
+    color:#CFE0D3;
+    font-size:13.5px;
+  }
+  nav.tabs{
+    display:flex;
+    max-width:760px;
+    margin:0 auto;
+    gap:4px;
+    overflow-x:auto;
+  }
+  nav.tabs button{
+    background:none;
+    border:none;
+    color:#BFD3C4;
+    font-family:'Oswald',sans-serif;
+    font-size:13.5px;
+    text-transform:uppercase;
+    letter-spacing:0.03em;
+    padding:11px 14px;
+    cursor:pointer;
+    border-bottom:3px solid transparent;
+    white-space:nowrap;
+  }
+  nav.tabs button.active{
+    color:#fff;
+    border-bottom:3px solid var(--gold);
+  }
+  main{
+    max-width:760px;
+    margin:0 auto;
+    padding:22px 16px 60px;
+  }
+  .tabpane{display:none;}
+  .tabpane.active{display:block;}
+  .card{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:18px;
+    margin-bottom:16px;
+  }
+  .card h2{
+    font-size:15px;
+    text-transform:uppercase;
+    color:var(--pitch);
+    margin-bottom:12px;
+  }
+  .muted{color:var(--ink-soft); font-size:13px;}
+  label{
+    display:block;
+    font-size:12.5px;
+    font-weight:600;
+    color:var(--ink-soft);
+    margin-bottom:5px;
+    text-transform:uppercase;
+    letter-spacing:0.02em;
+  }
+  input[type=text],input[type=email],input[type=date],input[type=datetime-local],input[type=password],select{
+    width:100%;
+    padding:10px 11px;
+    border:1px solid var(--line);
+    border-radius:5px;
+    font-family:'Inter',sans-serif;
+    font-size:14.5px;
+    background:#fff;
+    color:var(--ink);
+    margin-bottom:14px;
+  }
+  input:focus,select:focus,button:focus-visible{
+    outline:2px solid var(--gold);
+    outline-offset:1px;
+  }
+  .row2{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+  @media(max-width:520px){.row2{grid-template-columns:1fr;}}
+  button.btn{
+    background:var(--pitch);
+    color:#fff;
+    border:none;
+    padding:11px 18px;
+    font-family:'Oswald',sans-serif;
+    font-size:14px;
+    text-transform:uppercase;
+    letter-spacing:0.03em;
+    border-radius:5px;
+    cursor:pointer;
+  }
+  button.btn:hover{background:var(--pitch-dark);}
+  button.btn.gold{background:var(--gold); color:#26200f;}
+  button.btn.outline{background:none; border:1px solid var(--pitch); color:var(--pitch);}
+  button.btn.danger{background:var(--brick);}
+  button.btn:disabled{opacity:0.45; cursor:not-allowed;}
+  button.linklike{
+    background:none;border:none;color:var(--pitch);text-decoration:underline;
+    font-family:'Inter',sans-serif;font-size:13px;cursor:pointer;padding:0;
+  }
+  .pill{
+    display:inline-block;
+    font-family:'Oswald',sans-serif;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:0.03em;
+    padding:2px 9px;
+    border-radius:20px;
+  }
+  .pill.home{background:var(--pitch); color:#fff;}
+  .pill.away{background:#fff; color:var(--pitch); border:1px solid var(--pitch);}
+  .pill.in{background:var(--gold-soft); color:#6b4d10;}
+  .pill.out{background:var(--brick-soft); color:var(--brick);}
+  .fixture{
+    border:1px solid var(--line);
+    border-radius:6px;
+    margin-bottom:10px;
+    overflow:hidden;
+  }
+  .pickrow{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:12px 14px;
+    cursor:pointer;
+    border-top:1px solid var(--line);
+  }
+  .pickrow:first-child{border-top:none;}
+  .pickrow:hover{background:#FAF8F2;}
+  .pickrow.selected{background:var(--gold-soft); box-shadow:inset 3px 0 0 var(--gold);}
+  .pickrow.disabled{opacity:0.4; cursor:not-allowed; background:#F6F5F1;}
+  .pickrow .teamname{font-family:'Oswald',sans-serif; font-size:16px;}
+  .pickrow .vs{font-size:12.5px; color:var(--ink-soft);}
+  .used-tag{font-size:11px; color:var(--brick); font-family:'Inter',sans-serif;}
+  .statusbanner{
+    padding:12px 14px;
+    border-radius:6px;
+    margin-bottom:16px;
+    font-size:14px;
+  }
+  .statusbanner.open{background:var(--gold-soft); color:#6b4d10; border:1px solid #E3CE93;}
+  .statusbanner.closed{background:#EDEAE0; color:var(--ink-soft); border:1px solid var(--line);}
+  .statusbanner.out{background:var(--brick-soft); color:var(--brick); border:1px solid #E0BDB6;}
+  table{width:100%; border-collapse:collapse; font-size:13.5px;}
+  th,td{text-align:left; padding:8px 8px; border-bottom:1px solid var(--line);}
+  th{font-family:'Oswald',sans-serif; font-size:12px; text-transform:uppercase; color:var(--ink-soft);}
+  .playerlist{list-style:none; margin:0; padding:0; columns:2; column-gap:20px;}
+  @media(max-width:520px){.playerlist{columns:1;}}
+  .playerlist li{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:7px 0; border-bottom:1px solid var(--line);
+    break-inside:avoid;
+  }
+  .barrow{margin-bottom:9px;}
+  .barrow .toprow{display:flex; justify-content:space-between; font-size:13px; margin-bottom:3px;}
+  .bartrack{background:#EDEAE0; border-radius:3px; height:10px; overflow:hidden;}
+  .barfill{background:var(--gold); height:100%;}
+  .fixturerow-admin{display:grid; grid-template-columns:1fr 1fr auto; gap:8px; align-items:center; margin-bottom:8px;}
+  .smallbtn{background:none; border:1px solid var(--line); border-radius:4px; padding:6px 8px; cursor:pointer; font-size:12px;}
+  hr.hair{border:none; border-top:1px solid var(--line); margin:18px 0;}
+  .how p{margin:0 0 12px;}
+  .how h3{font-size:14px; text-transform:uppercase; color:var(--pitch); margin:18px 0 6px;}
+  .paytag{background:var(--chalk); border:1px dashed var(--line); padding:10px 12px; border-radius:5px; font-family:'Oswald',sans-serif; font-size:14px;}
+  .center{text-align:center;}
+  .footnote{font-size:12px; color:var(--ink-soft); margin-top:6px;}
+</style>
+</head>
+<body>
+
+<div id="setup-banner" style="display:none; background:#8C3B32; color:#fff; padding:14px 16px; font-size:14px; text-align:center;">
+  Firebase isn't configured yet — no data will save. Open this file's HTML, find <code>firebaseConfig</code> near the top of the script, and paste in your own Firebase project's keys (see the setup comment in the &lt;head&gt; section).
+</div>
+
+<header class="top">
+  <div class="brand">
+    <h1>HSM Last Man Standing 26/27</h1>
+    <p>Submit your pick each gameweek. Last one standing takes it.</p>
+  </div>
+  <nav class="tabs">
+    <button data-tab="enter" class="active">Enter Picks</button>
+    <button data-tab="standings">Standings</button>
+    <button data-tab="how">How It Works</button>
+    <button data-tab="admin">Admin</button>
+  </nav>
+</header>
+
+<main>
+
+  <!-- ENTER PICKS -->
+  <section id="tab-enter" class="tabpane active">
+    <div id="enter-content"><p class="muted">Loading…</p></div>
+
+    <hr class="hair">
+
+    <div class="card">
+      <h2>Check My Status</h2>
+      <p class="muted" style="margin-top:-6px;">Enter the name and email you used to enter, and we'll show your pick history and whether you're still in.</p>
+      <div class="row2">
+        <div>
+          <label for="chk-name">Name</label>
+          <input type="text" id="chk-name" placeholder="Your name">
+        </div>
+        <div>
+          <label for="chk-email">Email</label>
+          <input type="email" id="chk-email" placeholder="you@example.com">
+        </div>
+      </div>
+      <button class="btn outline" id="chk-btn">Check Status</button>
+      <div id="chk-result" style="margin-top:14px;"></div>
+    </div>
+  </section>
+
+  <!-- STANDINGS -->
+  <section id="tab-standings" class="tabpane">
+    <div id="standings-content"><p class="muted">Loading…</p></div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section id="tab-how" class="tabpane">
+    <div class="card how">
+      <h2>How It Works</h2>
+      <p class="paytag">Entry is £10<br>Payments to: Sam Brown<br>Sort code: 04&#8209;00&#8209;04 &nbsp; Account: 57525072</p>
+      <p style="margin-top:14px;">My son's football team are running a Premier League Last Man Standing to raise funds.</p>
+      <p>LMS is simple – each gameweek in the Premier League you need to choose a team.</p>
+      <p>If that team is a HOME team and they WIN you are through to the next round. If they DRAW or LOSE, you are unfortunately out.</p>
+      <p>If you choose an AWAY team, they have to WIN or DRAW for you to get through to the next round. If they LOSE, you are out.</p>
+      <p>The rounds continue until there is just one person left standing – but you can only choose a team ONCE until you have chosen all 20 teams.</p>
+      <h3>If it comes down to the wire</h3>
+      <p>If there are three or fewer people left in the game, they have the opportunity to split the pot, but every person must agree via a secret ballot. If it's not unanimous, then the gameweek is played. And if no one goes through…</p>
+      <p>If everyone is knocked out before there's a winner, the prize pot is rolled over and a new gameweek starts where all players (old and new) can reinvest in the next game, giving us a bumper pot.</p>
+      <h3>Deadlines</h3>
+      <p>All picks must be submitted at least 90 minutes before the first match. If you don't submit your pick, then you will be eliminated as there's no way to manually insert a selection.</p>
+      <h3>Changed your mind?</h3>
+      <p>If you've changed your mind and want to change your selection, simply submit your new pick using the same name and email address and it'll overwrite your previous pick — as long as it's before the deadline.</p>
+      <h3>Sharing an email address?</h3>
+      <p>If more than one of you is entering from the same email (e.g. a couple both playing), that's fine — just make sure you type your name exactly the same way every time you submit a pick or check your status, so the site can tell you apart.</p>
+      <h3>The pot</h3>
+      <p>The winner gets 50% of the takings, with the remaining 50% going to Horsforth St Margarets.</p>
+      <p>Any issues, drop me an email on sam727727@gmail.com</p>
+      <p class="paytag">Entry is £10<br>Payments to: Sam Brown<br>Sort code: 04&#8209;00&#8209;04 &nbsp; Account: 57525072</p>
+    </div>
+  </section>
+
+  <!-- ADMIN -->
+  <section id="tab-admin" class="tabpane">
+    <div id="admin-login-card" class="card">
+      <h2>Admin Login</h2>
+      <label for="admin-pass">Password</label>
+      <input type="password" id="admin-pass" placeholder="Enter admin password">
+      <button class="btn" id="admin-login-btn">Log In</button>
+      <p id="admin-login-error" class="muted" style="color:var(--brick); display:none;">Incorrect password.</p>
+    </div>
+    <div id="admin-content" style="display:none;"></div>
+  </section>
+
+</main>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getFirestore, doc, getDoc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+/* ============================= FIREBASE CONFIG =============================
+   Replace every value below with the config from YOUR OWN Firebase project
+   (see the setup comment near the top of the <head> section of this file). */
+const firebaseConfig = {
+  apiKey: "AIzaSyDjwb1R8nO6ZrkGGtzKFOAbIz0DX5K-Hk4",
+  authDomain: "hsm-last-one-standing.firebaseapp.com",
+  projectId: "hsm-last-one-standing",
+  storageBucket: "hsm-last-one-standing.firebasestorage.app",
+  messagingSenderId: "995802264431",
+  appId: "1:995802264431:web:72bcd36e9ca2293d77ae9a"
+};
+/* ============================================================================ */
+
+const firebaseReady = !String(firebaseConfig.apiKey).startsWith('YOUR_');
+if(!firebaseReady){ document.getElementById('setup-banner').style.display = 'block'; }
+
+const firebaseApp = firebaseReady ? initializeApp(firebaseConfig) : null;
+const db = firebaseReady ? getFirestore(firebaseApp) : null;
+const COLL = 'lms';
+
+/* ============================= STORAGE HELPERS =============================
+   Everything the app needs lives under a small, fixed set of document ids
+   ('config', 'players', 'gw_1', 'picks_1', 'gw_2', 'picks_2', ...) rather than
+   one document per player or per pick — far fewer reads/writes, which matters
+   both for Firestore's free-tier quota and for keeping this snappy. A short
+   in-memory cache avoids re-fetching the same document twice in quick succession
+   (e.g. re-rendering right after a click). */
+function wait(ms){ return new Promise(r=>setTimeout(r, ms)); }
+const _cache = new Map();
+const CACHE_TTL_MS = 4000;
+
+async function sGet(key, attempt=0){
+  if(!firebaseReady) return null;
+  const cached = _cache.get(key);
+  if(cached && (Date.now() - cached.ts) < CACHE_TTL_MS) return cached.value;
+  try{
+    const snap = await getDoc(doc(db, COLL, key));
+    const val = snap.exists() ? snap.data().value : null;
+    _cache.set(key, { value: val, ts: Date.now() });
+    return val;
+  }catch(e){
+    if(attempt < 1){ await wait(1000); return sGet(key, attempt+1); }
+    console.error('sGet failed after retry', key, e);
+    if(cached) return cached.value;
+    return null;
+  }
+}
+async function sSet(key, val, attempt=0){
+  if(!firebaseReady) return false;
+  try{
+    await setDoc(doc(db, COLL, key), { value: val });
+    _cache.set(key, { value: val, ts: Date.now() });
+    return true;
+  }catch(e){
+    if(attempt < 1){ await wait(1000); return sSet(key, val, attempt+1); }
+    console.error('sSet failed after retry', key, e);
+    return false;
+  }
+}
+async function sDelete(key, attempt=0){
+  if(!firebaseReady) return false;
+  try{
+    await deleteDoc(doc(db, COLL, key));
+    _cache.delete(key);
+    return true;
+  }catch(e){
+    if(attempt < 1){ await wait(1000); return sDelete(key, attempt+1); }
+    console.error('sDelete failed after retry', key, e);
+    return false;
+  }
+}
+
+
+/* ============================= UTILITIES ============================= */
+function esc(s){ return (s||'').toString().replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function normEmail(e){ return (e||'').trim().toLowerCase(); }
+function emailKey(e){ return normEmail(e).replace(/[^a-z0-9]/g,'_'); }
+function normName(n){ return (n||'').trim().toLowerCase(); }
+function playerKey(name, email){ return emailKey(email) + '__' + normName(name).replace(/[^a-z0-9]/g,'_'); }
+function fmtDate(iso){
+  if(!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleString('en-GB', { weekday:'short', day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
+}
+
+const DEFAULT_TEAMS = [
+  "Arsenal","Aston Villa","Bournemouth","Brentford","Brighton & Hove Albion",
+  "Chelsea","Coventry City","Crystal Palace","Everton","Fulham",
+  "Hull City","Ipswich Town","Leeds United","Liverpool","Manchester City",
+  "Manchester United","Newcastle United","Nottingham Forest","Sunderland","Tottenham Hotspur"
+];
+
+/* ============================= CORE DATA ACCESS ============================= */
+async function getConfig(){
+  let c = await sGet('config');
+  if(!c){ c = { teams: DEFAULT_TEAMS.slice(), currentGw: 0 }; await sSet('config', c); }
+  return c;
+}
+async function saveConfig(c){ return await sSet('config', c); }
+
+async function getGw(n){ return n ? await sGet('gw_'+n) : null; }
+async function saveGw(gw){ return await sSet('gw_'+gw.number, gw); }
+
+/* All players live in ONE key (map of playerKey -> player record).
+   All of one gameweek's picks live in ONE key (map of playerKey -> pick record).
+   This keeps the number of storage calls small and independent of player count,
+   which avoids the "message rate limit" errors that many small keys triggered. */
+async function getPlayersMap(){ return (await sGet('players')) || {}; }
+async function savePlayersMap(map){ return await sSet('players', map); }
+
+async function getPlayer(name, email){
+  const map = await getPlayersMap();
+  return map[playerKey(name, email)] || null;
+}
+async function savePlayer(p){
+  const map = await getPlayersMap();
+  map[playerKey(p.name, p.email)] = p;
+  return await savePlayersMap(map);
+}
+async function listAllPlayers(){
+  const map = await getPlayersMap();
+  return Object.values(map);
+}
+
+async function getPicksMap(n){ return (await sGet('picks_'+n)) || {}; }
+async function savePicksMap(n, map){ return await sSet('picks_'+n, map); }
+
+async function getPick(n, name, email){
+  const map = await getPicksMap(n);
+  return map[playerKey(name, email)] || null;
+}
+async function savePick(n, pick){
+  const map = await getPicksMap(n);
+  map[playerKey(pick.name, pick.email)] = pick;
+  return await savePicksMap(n, map);
+}
+async function listPicksForGw(n){
+  const map = await getPicksMap(n);
+  return Object.values(map);
+}
+
+function isEntryOpen(gw){
+  if(!gw) return false;
+  if(gw.status !== 'open') return false;
+  return Date.now() < new Date(gw.deadline).getTime();
+}
+function eligibleTeamsFromFixtures(fixtureTeams, player, allTeams){
+  const usedFull = player && player.teamsUsedCycle && player.teamsUsedCycle.length >= allTeams.length;
+  return fixtureTeams.filter(t => usedFull || !(player && player.teamsUsedCycle && player.teamsUsedCycle.includes(t)));
+}
+
+/* ============================= TABS ============================= */
+document.querySelectorAll('nav.tabs button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.tabpane').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
+    if(btn.dataset.tab==='standings') renderStandings();
+    if(btn.dataset.tab==='enter') renderEnter();
+  });
+});
+
+/* ============================= ENTER PICKS TAB ============================= */
+let enterState = { name:'', email:'', selectedTeam:null };
+
+async function renderEnter(){
+  const el = document.getElementById('enter-content');
+  const config = await getConfig();
+  const gw = await getGw(config.currentGw);
+
+  if(!gw){
+    el.innerHTML = `<div class="card"><h2>Enter Picks</h2><p class="muted">There's no gameweek open for entries right now. Check back soon.</p></div>`;
+    return;
+  }
+
+  const open = isEntryOpen(gw);
+
+  let html = `<div class="card">
+    <h2>Gameweek ${gw.number} Picks</h2>
+    <div class="statusbanner ${open?'open':'closed'}">
+      ${open ? `Entries close ${fmtDate(gw.deadline)}` : `Entries for Gameweek ${gw.number} are now closed.`}
+    </div>
+    <div class="row2">
+      <div>
+        <label for="ent-name">Name</label>
+        <input type="text" id="ent-name" placeholder="Your name" value="${esc(enterState.name)}">
+      </div>
+      <div>
+        <label for="ent-email">Email</label>
+        <input type="email" id="ent-email" placeholder="you@example.com" value="${esc(enterState.email)}">
+      </div>
+    </div>
+    <div id="ent-fixtures"></div>
+    <button class="btn gold" id="ent-submit" ${open?'':'disabled'}>Submit Pick</button>
+    <div id="ent-msg" style="margin-top:10px;"></div>
+  </div>`;
+  el.innerHTML = html;
+
+  let identityDebounce;
+  function scheduleFixtureRefresh(){
+    clearTimeout(identityDebounce);
+    identityDebounce = setTimeout(()=>renderFixturePicker(gw, open), 500);
+  }
+  document.getElementById('ent-name').addEventListener('input', e=>{
+    enterState.name = e.target.value;
+    enterState.selectedTeam = null; // identity changed — old selection may no longer be valid
+    scheduleFixtureRefresh();
+  });
+  document.getElementById('ent-email').addEventListener('input', e=>{
+    enterState.email = e.target.value;
+    enterState.selectedTeam = null; // identity changed — old selection may no longer be valid
+    scheduleFixtureRefresh();
+  });
+
+  await renderFixturePicker(gw, open);
+
+  document.getElementById('ent-submit').addEventListener('click', async ()=>{
+    await handleSubmitPick(gw);
+  });
+}
+
+async function renderFixturePicker(gw, open){
+  const holder = document.getElementById('ent-fixtures');
+  if(!holder) return;
+  const config = await getConfig();
+  let player = null;
+  const email = normEmail(enterState.email);
+  const name = (enterState.name||'').trim();
+  if(email && email.includes('@') && name){
+    player = await getPlayer(name, email);
+  }
+
+  if(player && player.status === 'out'){
+    holder.innerHTML = `<div class="statusbanner out">This entrant is already out of the competition. Thanks for playing!</div>`;
+    document.getElementById('ent-submit').disabled = true;
+    return;
+  }
+
+  let existingPick = null;
+  if(player) existingPick = await getPick(gw.number, enterState.name, enterState.email);
+  if(existingPick && !enterState.selectedTeam) enterState.selectedTeam = existingPick.team;
+
+  let rows = '';
+  gw.fixtures.forEach(fx=>{
+    const homeElig = eligibleTeamsFromFixtures([fx.home], player, config.teams).length>0;
+    const awayElig = eligibleTeamsFromFixtures([fx.away], player, config.teams).length>0;
+    rows += `<div class="fixture">
+      <div class="pickrow ${enterState.selectedTeam===fx.home?'selected':''} ${homeElig?'':'disabled'}" data-team="${esc(fx.home)}" data-elig="${homeElig}">
+        <div><span class="pill home">Home</span> <span class="teamname">${esc(fx.home)}</span></div>
+        <div class="vs">${homeElig? 'vs '+esc(fx.away) : '<span class="used-tag">already used</span>'}</div>
+      </div>
+      <div class="pickrow ${enterState.selectedTeam===fx.away?'selected':''} ${awayElig?'':'disabled'}" data-team="${esc(fx.away)}" data-elig="${awayElig}">
+        <div><span class="pill away">Away</span> <span class="teamname">${esc(fx.away)}</span></div>
+        <div class="vs">${awayElig? 'vs '+esc(fx.home) : '<span class="used-tag">already used</span>'}</div>
+      </div>
+    </div>`;
+  });
+  holder.innerHTML = rows;
+
+  holder.querySelectorAll('.pickrow').forEach(row=>{
+    row.addEventListener('click', ()=>{
+      if(row.dataset.elig !== 'true') return;
+      enterState.selectedTeam = row.dataset.team;
+      holder.querySelectorAll('.pickrow').forEach(r=>r.classList.remove('selected'));
+      row.classList.add('selected');
+    });
+  });
+
+  document.getElementById('ent-submit').disabled = !open;
+}
+
+async function handleSubmitPick(gw){
+  const msg = document.getElementById('ent-msg');
+  msg.innerHTML = '';
+  const name = (document.getElementById('ent-name').value||'').trim();
+  const email = (document.getElementById('ent-email').value||'').trim();
+
+  if(!isEntryOpen(gw)){ msg.innerHTML = `<p class="muted" style="color:var(--brick);">Entries are closed.</p>`; return; }
+  if(!name || !email || !email.includes('@')){
+    msg.innerHTML = `<p class="muted" style="color:var(--brick);">Please enter your name and a valid email.</p>`; return;
+  }
+  if(!enterState.selectedTeam){
+    msg.innerHTML = `<p class="muted" style="color:var(--brick);">Please select a team.</p>`; return;
+  }
+
+  let player = await getPlayer(name, email);
+  if(player && player.status==='out'){
+    msg.innerHTML = `<p class="muted" style="color:var(--brick);">This entrant is already out of the competition.</p>`; return;
+  }
+
+  // Re-validate the held selection against the current gameweek's fixtures and
+  // this player's eligibility — never trust a selection made before name/email
+  // last changed, or one left over from a previous gameweek.
+  const config = await getConfig();
+  const fixtureTeamsThisGw = gw.fixtures.flatMap(f=>[f.home, f.away]);
+  const isOnFixture = fixtureTeamsThisGw.includes(enterState.selectedTeam);
+  const isEligible = eligibleTeamsFromFixtures([enterState.selectedTeam], player, config.teams).length > 0;
+  if(!isOnFixture || !isEligible){
+    enterState.selectedTeam = null;
+    msg.innerHTML = `<p class="muted" style="color:var(--brick);">That selection is no longer valid (already used, or not a fixture this gameweek) — please pick again.</p>`;
+    await renderFixturePicker(gw, isEntryOpen(gw));
+    return;
+  }
+
+  const submitBtn = document.getElementById('ent-submit');
+  submitBtn.disabled = true;
+  msg.innerHTML = `<p class="muted">Saving your pick…</p>`;
+
+  if(!player){
+    player = { name, email, status:'in', teamsUsedCycle:[], history:[] };
+    const playerOk = await savePlayer(player);
+    if(!playerOk){
+      msg.innerHTML = `<p class="muted" style="color:var(--brick);">Couldn't save your entry due to a connection problem. Please try submitting again.</p>`;
+      submitBtn.disabled = false;
+      return;
+    }
+  }
+
+  const pickOk = await savePick(gw.number, { name, email, team: enterState.selectedTeam, ts: Date.now() });
+  submitBtn.disabled = false;
+  if(!pickOk){
+    msg.innerHTML = `<p class="muted" style="color:var(--brick);">Your pick couldn't be saved due to a connection problem. Please try submitting again.</p>`;
+    return;
+  }
+  msg.innerHTML = `<p style="color:var(--pitch); font-weight:600;">Pick submitted: ${esc(enterState.selectedTeam)}. Good luck!</p>`;
+  enterState.selectedTeam = null; // don't let a stale selection carry into a future gameweek
+}
+
+/* ============================= CHECK MY STATUS ============================= */
+document.getElementById('chk-btn').addEventListener('click', async ()=>{
+  const name = document.getElementById('chk-name').value.trim();
+  const email = document.getElementById('chk-email').value.trim();
+  const box = document.getElementById('chk-result');
+  box.innerHTML = `<p class="muted">Checking…</p>`;
+  if(!name){ box.innerHTML = `<p class="muted" style="color:var(--brick);">Enter your name.</p>`; return; }
+  if(!email || !email.includes('@')){ box.innerHTML = `<p class="muted" style="color:var(--brick);">Enter a valid email.</p>`; return; }
+  const player = await getPlayer(name, email);
+  if(!player){ box.innerHTML = `<p class="muted">No entries found for that name and email. If you share an email with someone else, make sure you type your name exactly as you did when you entered.</p>`; return; }
+
+  const config = await getConfig();
+  const gw = await getGw(config.currentGw);
+  let currentPickLine = '';
+  if(gw){
+    const pick = await getPick(gw.number, name, email);
+    if(player.status==='out'){
+      currentPickLine = '';
+    } else if(pick){
+      currentPickLine = `<p>Gameweek ${gw.number} pick: <strong>${esc(pick.team)}</strong></p>`;
+    } else if(isEntryOpen(gw)){
+      currentPickLine = `<p class="muted">No pick submitted yet for Gameweek ${gw.number}.</p>`;
+    }
+  }
+
+  let historyRows = '';
+  player.history.slice().reverse().forEach(h=>{
+    historyRows += `<tr><td>GW${h.gw}</td><td>${esc(h.team)}</td><td>${h.outcome==='through' ? 'Through' : 'Out'}</td></tr>`;
+  });
+
+  box.innerHTML = `
+    <div class="statusbanner ${player.status==='in'?'open':'out'}">
+      ${esc(player.name)} — ${player.status==='in' ? 'Still in' : 'Knocked out'}
+    </div>
+    ${currentPickLine}
+    ${historyRows ? `<table><thead><tr><th>Gameweek</th><th>Team</th><th>Result</th></tr></thead><tbody>${historyRows}</tbody></table>` : '<p class="muted">No pick history yet.</p>'}
+  `;
+});
+
+/* ============================= STANDINGS TAB ============================= */
+async function renderStandings(){
+  const el = document.getElementById('standings-content');
+  el.innerHTML = `<p class="muted">Loading…</p>`;
+  const config = await getConfig();
+  const players = await listAllPlayers();
+  const inPlayers = players.filter(p=>p.status==='in').sort((a,b)=>a.name.localeCompare(b.name));
+  const outPlayers = players.filter(p=>p.status==='out').sort((a,b)=>a.name.localeCompare(b.name));
+
+  let overallHtml = `<div class="card">
+    <h2>Overall Standings</h2>
+    <p class="muted" style="margin-top:-6px;">${inPlayers.length} still in &middot; ${outPlayers.length} out</p>
+    <ul class="playerlist">
+      ${inPlayers.map(p=>`<li><span>${esc(p.name)}</span><span class="pill in">In</span></li>`).join('')}
+      ${outPlayers.map(p=>`<li><span>${esc(p.name)}</span><span class="pill out">Out</span></li>`).join('')}
+    </ul>
+    ${players.length===0 ? '<p class="muted">No players yet.</p>' : ''}
+  </div>`;
+
+  let gwHtml = '';
+  const gw = await getGw(config.currentGw);
+  if(gw){
+    const open = isEntryOpen(gw);
+    if(open){
+      gwHtml = `<div class="card">
+        <h2>Gameweek ${gw.number} Entries</h2>
+        <p class="muted">Picks are hidden until entries close at ${fmtDate(gw.deadline)}, to keep it fair for everyone still deciding.</p>
+      </div>`;
+    } else {
+      const picks = await listPicksForGw(gw.number);
+      const counts = {};
+      picks.forEach(p=> counts[p.team] = (counts[p.team]||0)+1 );
+      const maxCount = Math.max(1, ...Object.values(counts));
+      const sortedTeams = Object.keys(counts).sort((a,b)=>counts[b]-counts[a]);
+
+      gwHtml = `<div class="card">
+        <h2>Gameweek ${gw.number} Entries</h2>
+        ${picks.length===0 ? '<p class="muted">No picks were submitted this gameweek.</p>' : `
+        <div style="margin-bottom:16px;">
+          ${sortedTeams.map(t=>`
+            <div class="barrow">
+              <div class="toprow"><span>${esc(t)}</span><span>${counts[t]}</span></div>
+              <div class="bartrack"><div class="barfill" style="width:${(counts[t]/maxCount*100).toFixed(0)}%"></div></div>
+            </div>
+          `).join('')}
+        </div>
+        <table>
+          <thead><tr><th>Name</th><th>Pick</th></tr></thead>
+          <tbody>
+            ${picks.sort((a,b)=>a.name.localeCompare(b.name)).map(p=>`<tr><td>${esc(p.name)}</td><td>${esc(p.team)}</td></tr>`).join('')}
+          </tbody>
+        </table>`}
+      </div>`;
+    }
+  } else {
+    gwHtml = `<div class="card"><h2>This Gameweek</h2><p class="muted">No gameweek currently open.</p></div>`;
+  }
+
+  el.innerHTML = gwHtml + overallHtml;
+}
+
+/* ============================= ADMIN TAB ============================= */
+let isAdmin = false;
+document.getElementById('admin-login-btn').addEventListener('click', ()=>{
+  const val = document.getElementById('admin-pass').value;
+  if(val === '727727'){
+    isAdmin = true;
+    document.getElementById('admin-login-card').style.display='none';
+    document.getElementById('admin-content').style.display='block';
+    renderAdmin();
+  } else {
+    document.getElementById('admin-login-error').style.display='block';
+  }
+});
+
+let draftFixtures = [{home:'',away:''}];
+
+async function renderAdmin(){
+  const el = document.getElementById('admin-content');
+  const config = await getConfig();
+  const gw = await getGw(config.currentGw);
+  const prevEnded = !gw || gw.ended;
+  const allPlayers = await listAllPlayers();
+
+  let html = '';
+
+  // Gameweek management
+  html += `<div class="card">
+    <h2>Gameweek Management</h2>
+    ${gw ? `<p class="muted">Current entrant-facing gameweek: <strong>GW${gw.number}</strong> — status: ${gw.status}${gw.ended?' (ended)':''}</p>` : `<p class="muted">No gameweek has been created yet.</p>`}
+  </div>`;
+
+  if(prevEnded){
+    const nextNum = gw ? gw.number+1 : 1;
+    html += `<div class="card">
+      <h2>Create Gameweek ${nextNum}</h2>
+      <div id="fixture-rows"></div>
+      <button class="smallbtn" id="add-fixture-row">+ Add fixture</button>
+      <hr class="hair">
+      <label for="kickoff-date">First kick-off date</label>
+      <input type="date" id="kickoff-date">
+      <label for="kickoff-preset">Kick-off time</label>
+      <select id="kickoff-preset">
+        <option value="fri2000">Friday 20:00</option>
+        <option value="sat1230">Saturday 12:30</option>
+        <option value="custom">Custom deadline</option>
+      </select>
+      <div id="custom-deadline-wrap" style="display:none;">
+        <label for="custom-deadline">Entries close (deadline)</label>
+        <input type="datetime-local" id="custom-deadline">
+      </div>
+      <p class="muted" id="deadline-preview"></p>
+      <button class="btn gold" id="publish-gw-btn">Create &amp; Open for Entries</button>
+      <div id="gw-create-msg"></div>
+    </div>`;
+  }
+
+  if(gw){
+    const picks = await listPicksForGw(gw.number);
+    const inCount = allPlayers.filter(p=>p.status==='in').length;
+    const missingCount = Math.max(0, inCount - picks.length);
+
+    html += `<div class="card">
+      <h2>Gameweek ${gw.number} Entries (${picks.length}${inCount?` of ${inCount} eligible`:''})</h2>
+      <table><thead><tr><th>Name</th><th>Email</th><th>Pick</th><th>Time</th></tr></thead>
+      <tbody>
+        ${picks.sort((a,b)=>a.name.localeCompare(b.name)).map(p=>`<tr><td>${esc(p.name)}</td><td>${esc(p.email)}</td><td>${esc(p.team)}</td><td>${new Date(p.ts).toLocaleString('en-GB')}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">No entries yet.</td></tr>'}
+      </tbody></table>
+      ${!gw.ended && missingCount>0 ? `<p class="muted" style="margin-top:10px;">${missingCount} eligible player(s) haven't submitted a pick yet. Deadlines are automatic — anyone still eligible with no pick when you end this gameweek will be knocked out.</p>` : ''}
+    </div>`;
+
+    if(!gw.ended){
+      html += `<div class="card">
+        <h2>Enter Results &amp; End Gameweek ${gw.number}</h2>
+        <div id="results-rows"></div>
+        <button class="btn danger" id="end-gw-btn" style="margin-top:8px;">Calculate Results &amp; End Gameweek</button>
+        <div id="end-gw-msg"></div>
+      </div>`;
+    }
+  }
+
+  // PDF export — gameweeks are always numbered sequentially from 1, so we can
+  // list them from config.currentGw without an extra storage list call.
+  const allGwNums = [];
+  for(let i=1;i<=(config.currentGw||0);i++) allGwNums.push(i);
+  html += `<div class="card">
+    <h2>Download Entries PDF</h2>
+    <label for="pdf-gw-select">Gameweek</label>
+    <select id="pdf-gw-select">
+      ${allGwNums.map(n=>`<option value="${n}">Gameweek ${n}</option>`).join('')}
+    </select>
+    <button class="btn" id="pdf-btn">Download PDF</button>
+    <p class="footnote">The PDF lists name and pick only — no email addresses — so it's safe to share with entrants.</p>
+  </div>`;
+
+  // Player admin table
+  html += `<div class="card">
+    <h2>All Players</h2>
+    <table><thead><tr><th>Name</th><th>Email</th><th>Status</th><th>History</th></tr></thead>
+    <tbody id="admin-players-body"></tbody></table>
+  </div>`;
+
+  // Season teams editor
+  html += `<div class="card">
+    <h2>Season Teams</h2>
+    <p class="muted" style="margin-top:-6px;">One team per line. Used to work out when a player has been through all 20 and can repeat a team.</p>
+    <textarea id="teams-editor" style="width:100%; min-height:160px; font-family:'Inter',sans-serif; padding:10px; border:1px solid var(--line); border-radius:5px;">${config.teams.join('\n')}</textarea>
+    <button class="btn outline" id="save-teams-btn" style="margin-top:8px;">Save Team List</button>
+    <div id="teams-save-msg"></div>
+  </div>`;
+
+  html += `<div class="card">
+    <h2>Data Store</h2>
+    <p class="muted">This site stores everyone's picks in a Firebase project. If you haven't locked down its Firestore security rules yet, anyone with the site URL could in theory read or write data directly (not just through this page). For a small private pool that's usually an acceptable risk, but if you want it tighter, set Firestore rules to only allow reads/writes on the <code>lms</code> collection.</p>
+  </div>`;
+
+  html += `<div class="card">
+    <h2>Danger Zone</h2>
+    <p class="muted">Wipes every player, pick and gameweek. Use only to reset the whole competition.</p>
+    <button class="btn danger" id="reset-all-btn">Reset Entire Competition</button>
+  </div>`;
+
+  el.innerHTML = html;
+
+  // wire up
+  const playersBody = document.getElementById('admin-players-body');
+  playersBody.innerHTML = allPlayers.sort((a,b)=>a.name.localeCompare(b.name)).map(p=>`
+    <tr><td>${esc(p.name)}</td><td>${esc(p.email)}</td><td><span class="pill ${p.status==='in'?'in':'out'}">${p.status==='in'?'In':'Out'}</span></td>
+    <td>${p.history.map(h=>`GW${h.gw}: ${esc(h.team)} (${h.outcome})`).join(', ') || '—'}</td></tr>
+  `).join('') || `<tr><td colspan="4" class="muted">No players yet.</td></tr>`;
+
+  if(prevEnded){
+    await renderFixtureRows();
+    document.getElementById('add-fixture-row').addEventListener('click', ()=>{
+      draftFixtures.push({home:'',away:''});
+      renderFixtureRows();
+    });
+    document.getElementById('kickoff-preset').addEventListener('change', updateDeadlinePreview);
+    document.getElementById('kickoff-date').addEventListener('change', updateDeadlinePreview);
+    document.getElementById('custom-deadline').addEventListener('change', updateDeadlinePreview);
+    document.getElementById('publish-gw-btn').addEventListener('click', createGameweek);
+  }
+
+  if(gw && !gw.ended){
+    renderResultsRows(gw);
+    document.getElementById('end-gw-btn').addEventListener('click', ()=>endGameweek(gw.number));
+  }
+
+  document.getElementById('pdf-btn').addEventListener('click', ()=>{
+    const n = document.getElementById('pdf-gw-select').value;
+    if(n) downloadPdf(parseInt(n,10));
+  });
+
+  document.getElementById('save-teams-btn').addEventListener('click', async ()=>{
+    const lines = document.getElementById('teams-editor').value.split('\n').map(s=>s.trim()).filter(Boolean);
+    const c = await getConfig();
+    c.teams = lines;
+    await saveConfig(c);
+    document.getElementById('teams-save-msg').innerHTML = `<p style="color:var(--pitch);">Saved.</p>`;
+  });
+
+  document.getElementById('reset-all-btn').addEventListener('click', async ()=>{
+    if(!confirm('This will permanently delete all players, picks and gameweeks. Continue?')) return;
+    const c = await getConfig();
+    const last = c.currentGw || 0;
+    await sDelete('players');
+    for(let i=1;i<=last;i++){
+      await sDelete('gw_'+i);
+      await sDelete('picks_'+i);
+    }
+    await saveConfig({ teams: DEFAULT_TEAMS.slice(), currentGw: 0 });
+    renderAdmin();
+  });
+}
+
+async function renderFixtureRows(){
+  const holder = document.getElementById('fixture-rows');
+  const config = await getConfig();
+  const teams = config.teams;
+
+  function options(selected, excludeTeam){
+    const opts = ['<option value="">Select team…</option>'];
+    teams.forEach(t=>{
+      if(excludeTeam && t===excludeTeam) return;
+      opts.push(`<option value="${esc(t)}" ${t===selected?'selected':''}>${esc(t)}</option>`);
+    });
+    return opts.join('');
+  }
+
+  holder.innerHTML = draftFixtures.map((f,i)=>`
+    <div class="fixturerow-admin">
+      <select data-idx="${i}" data-side="home">${options(f.home, f.away)}</select>
+      <select data-idx="${i}" data-side="away">${options(f.away, f.home)}</select>
+      <button class="smallbtn" data-remove="${i}">Remove</button>
+    </div>
+  `).join('');
+
+  holder.querySelectorAll('select').forEach(sel=>{
+    sel.addEventListener('change', e=>{
+      const i = parseInt(e.target.dataset.idx,10);
+      draftFixtures[i][e.target.dataset.side] = e.target.value;
+      renderFixtureRows(); // refresh so home/away exclude each other
+    });
+  });
+  holder.querySelectorAll('[data-remove]').forEach(btn=>{
+    btn.addEventListener('click', e=>{
+      draftFixtures.splice(parseInt(e.target.dataset.remove,10),1);
+      if(draftFixtures.length===0) draftFixtures.push({home:'',away:''});
+      renderFixtureRows();
+    });
+  });
+}
+
+function updateDeadlinePreview(){
+  const preset = document.getElementById('kickoff-preset').value;
+  document.getElementById('custom-deadline-wrap').style.display = preset==='custom' ? 'block':'none';
+  const preview = document.getElementById('deadline-preview');
+  if(preset==='custom'){
+    const v = document.getElementById('custom-deadline').value;
+    preview.textContent = v ? `Entries close: ${fmtDate(new Date(v).toISOString())}` : '';
+    return;
+  }
+  const dateVal = document.getElementById('kickoff-date').value;
+  if(!dateVal){ preview.textContent=''; return; }
+  const [y,m,d] = dateVal.split('-').map(Number);
+  const hour = preset==='fri2000' ? 20 : 12;
+  const min = preset==='fri2000' ? 0 : 30;
+  const kickoff = new Date(y, m-1, d, hour, min, 0);
+  const deadline = new Date(kickoff.getTime() - 90*60000);
+  preview.textContent = `Entries close: ${fmtDate(deadline.toISOString())}`;
+}
+
+async function createGameweek(){
+  const msg = document.getElementById('gw-create-msg');
+  const fixtures = draftFixtures.filter(f=>f.home.trim() && f.away.trim())
+    .map(f=>({home:f.home.trim(), away:f.away.trim()}));
+  if(fixtures.length===0){ msg.innerHTML = `<p style="color:var(--brick);">Add at least one fixture.</p>`; return; }
+
+  const preset = document.getElementById('kickoff-preset').value;
+  let deadlineIso;
+  if(preset==='custom'){
+    const v = document.getElementById('custom-deadline').value;
+    if(!v){ msg.innerHTML = `<p style="color:var(--brick);">Set a deadline.</p>`; return; }
+    deadlineIso = new Date(v).toISOString();
+  } else {
+    const dateVal = document.getElementById('kickoff-date').value;
+    if(!dateVal){ msg.innerHTML = `<p style="color:var(--brick);">Set the kick-off date.</p>`; return; }
+    const [y,m,d] = dateVal.split('-').map(Number);
+    const hour = preset==='fri2000' ? 20 : 12;
+    const min = preset==='fri2000' ? 0 : 30;
+    const kickoff = new Date(y, m-1, d, hour, min, 0);
+    deadlineIso = new Date(kickoff.getTime() - 90*60000).toISOString();
+  }
+
+  const config = await getConfig();
+  const number = (config.currentGw||0) + 1;
+  const gw = { number, fixtures, deadline: deadlineIso, status:'open', ended:false, results:null };
+  const gwOk = await saveGw(gw);
+  if(!gwOk){ msg.innerHTML = `<p style="color:var(--brick);">Couldn't save due to a connection problem. Please try again.</p>`; return; }
+  config.currentGw = number;
+  const cfgOk = await saveConfig(config);
+  if(!cfgOk){ msg.innerHTML = `<p style="color:var(--brick);">Gameweek saved, but couldn't update as the current gameweek — please try clicking again.</p>`; return; }
+  draftFixtures = [{home:'',away:''}];
+  msg.innerHTML = `<p style="color:var(--pitch);">Gameweek ${number} created and open for entries.</p>`;
+  renderAdmin();
+}
+
+function renderResultsRows(gw){
+  const holder = document.getElementById('results-rows');
+  const existing = gw.results || [];
+  holder.innerHTML = gw.fixtures.map((fx,i)=>{
+    const found = existing.find(r=>r.home===fx.home && r.away===fx.away);
+    const sel = found ? found.result : '';
+    return `<div class="fixturerow-admin" style="grid-template-columns:2fr 1fr;">
+      <div>${esc(fx.home)} <span class="muted">vs</span> ${esc(fx.away)}</div>
+      <select data-fx="${i}">
+        <option value="">Result…</option>
+        <option value="H" ${sel==='H'?'selected':''}>Home win</option>
+        <option value="D" ${sel==='D'?'selected':''}>Draw</option>
+        <option value="A" ${sel==='A'?'selected':''}>Away win</option>
+      </select>
+    </div>`;
+  }).join('');
+}
+
+/* Works out default picks for non-submitters purely in memory (no storage calls),
+   mutating picksMap directly. Caller is responsible for persisting picksMap once. */
+/* Deadlines are automatic: any 'in' player with no pick recorded for this
+   gameweek is knocked out when the gameweek is ended. Mutates playersMap
+   directly; caller is responsible for persisting it. */
+function eliminateNonSubmittersInMemory(n, playersMap, picksMap){
+  let eliminated = 0;
+  for(const pk of Object.keys(playersMap)){
+    const player = playersMap[pk];
+    if(player.status!=='in') continue;
+    if(picksMap[pk]) continue; // they submitted, handled by the normal outcome pass
+    player.history.push({ gw:n, team:'No pick submitted', outcome:'out' });
+    player.status = 'out';
+    eliminated++;
+  }
+  return eliminated;
+}
+
+async function endGameweek(n){
+  const msg = document.getElementById('end-gw-msg');
+  const gw = await getGw(n);
+  const config = await getConfig();
+
+  const selects = document.querySelectorAll('#results-rows select');
+  const results = [];
+  let allSet = true;
+  selects.forEach(sel=>{
+    const i = parseInt(sel.dataset.fx,10);
+    if(!sel.value){ allSet = false; return; }
+    results.push({ home: gw.fixtures[i].home, away: gw.fixtures[i].away, result: sel.value });
+  });
+  if(!allSet){ msg.innerHTML = `<p style="color:var(--brick);">Enter a result for every fixture.</p>`; return; }
+
+  gw.results = results;
+
+  // Load both maps once, do everything in memory, then write each back once.
+  const picksMap = await getPicksMap(n);
+  const playersMap = await getPlayersMap();
+
+  eliminateNonSubmittersInMemory(n, playersMap, picksMap);
+
+  for(const pk of Object.keys(picksMap)){
+    const pick = picksMap[pk];
+    const fixture = gw.fixtures.find(f=>f.home===pick.team || f.away===pick.team);
+    if(!fixture) continue;
+    const result = results.find(r=>r.home===fixture.home && r.away===fixture.away);
+    if(!result) continue;
+    const isHome = fixture.home === pick.team;
+    const through = isHome ? result.result==='H' : (result.result==='D' || result.result==='A');
+
+    let player = playersMap[pk] || { name:pick.name, email:pick.email, status:'in', teamsUsedCycle:[], history:[] };
+    player.history.push({ gw:n, team:pick.team, outcome: through ? 'through' : 'out' });
+    player.teamsUsedCycle.push(pick.team);
+    if(player.teamsUsedCycle.length >= config.teams.length) player.teamsUsedCycle = [];
+    player.status = through ? 'in' : 'out';
+    playersMap[pk] = player;
+  }
+
+  const picksOk = await savePicksMap(n, picksMap);
+  const playersOk = await savePlayersMap(playersMap);
+
+  gw.ended = true;
+  gw.status = 'ended';
+  const gwOk = await saveGw(gw);
+
+  if(!picksOk || !playersOk || !gwOk){
+    msg.innerHTML = `<p style="color:var(--brick);">Some results couldn't be saved due to a connection problem. Please click "Calculate Results &amp; End Gameweek" again.</p>`;
+    renderAdmin();
+    return;
+  }
+  msg.innerHTML = `<p style="color:var(--pitch);">Gameweek ${n} ended and results applied.</p>`;
+  renderAdmin();
+}
+
+/* ============================= PDF EXPORT ============================= */
+async function downloadPdf(n){
+  const gw = await getGw(n);
+  const picks = (await listPicksForGw(n)).sort((a,b)=>a.name.localeCompare(b.name));
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(16);
+  doc.text('HSM Last Man Standing 26/27', 14, 18);
+  doc.setFontSize(11);
+  doc.setFont('helvetica','normal');
+  doc.text(`Gameweek ${n} entries — generated ${new Date().toLocaleString('en-GB')}`, 14, 25);
+
+  let y = 38;
+  doc.setFont('helvetica','bold');
+  doc.text('Name', 14, y);
+  doc.text('Pick', 110, y);
+  doc.setFont('helvetica','normal');
+  y += 6;
+  doc.setDrawColor(200);
+  doc.line(14, y-4, 196, y-4);
+
+  picks.forEach(p=>{
+    if(y > 280){ doc.addPage(); y = 20; }
+    doc.text(p.name, 14, y);
+    doc.text(p.team, 110, y);
+    y += 7;
+  });
+
+  if(picks.length===0){
+    doc.text('No entries recorded for this gameweek.', 14, y);
+  }
+
+  doc.save(`HSM-LMS-Gameweek-${n}-entries.pdf`);
+}
+
+/* ============================= INIT ============================= */
+renderEnter();
+</script>
+</body>
+</html>
