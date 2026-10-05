@@ -322,6 +322,8 @@
 
 </main>
 
+<p id="build-stamp" style="text-align:center; font-size:11px; color:var(--ink-soft); padding:0 0 28px;">Build 2026-10-05-r4</p>
+
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, getDoc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -367,10 +369,11 @@ async function sGet(key, attempt=0){
     _cache.set(key, { value: val, ts: Date.now() });
     return val;
   }catch(e){
-    if(attempt < 1){ await wait(1000); return sGet(key, attempt+1); }
-    console.error('sGet failed after retry', key, e);
-    if(cached) return cached.value;
-    return null;
+    if(attempt < 2){ await wait(800*(attempt+1)); return sGet(key, attempt+1); }
+    console.error('sGet failed after retries', key, e);
+    // Throw rather than return null: null means "this document doesn't exist",
+    // and callers must be able to tell a failed read from a genuinely missing one.
+    throw new Error('LOAD_FAILED: ' + key);
   }
 }
 async function sSet(key, val, attempt=0){
@@ -403,8 +406,17 @@ async function sDelete(key, attempt=0){
 function esc(s){ return (s||'').toString().replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function normEmail(e){ return (e||'').trim().toLowerCase(); }
 function emailKey(e){ return normEmail(e).replace(/[^a-z0-9]/g,'_'); }
-function normName(n){ return (n||'').trim().toLowerCase(); }
-function playerKey(name, email){ return emailKey(email) + '__' + normName(name).replace(/[^a-z0-9]/g,'_'); }
+/* Names are compared loosely so trivial typing differences don't create a second
+   "player": capitalisation, extra/odd spaces (incl. non-breaking), hyphens vs spaces,
+   apostrophes and accents are all ignored (Eddie  Butcher = eddie butcher, O'Brien = OBrien,
+   José = Jose). */
+function normName(n){
+  return (n||'').normalize('NFKD').replace(/\p{M}/gu,'').toLowerCase()
+    .replace(/['\u2019`\u00b4]/g,'')
+    .replace(/[^\p{L}\p{N}]+/gu,' ')
+    .trim();
+}
+function playerKey(name, email){ return emailKey(email) + '__' + normName(name).replace(/ /g,'_'); }
 function fmtDate(iso){
   if(!iso) return '';
   const d = new Date(iso);
@@ -433,7 +445,37 @@ async function saveGw(gw){ return await sSet('gw_'+gw.number, gw); }
    All of one gameweek's picks live in ONE key (map of playerKey -> pick record).
    This keeps the number of storage calls small and independent of player count,
    which avoids the "message rate limit" errors that many small keys triggered. */
-async function getPlayersMap(){ return (await sGet('players')) || {}; }
+/* Records saved under an older/looser key (e.g. "Eddie  Butcher" with a double space)
+   are re-keyed on read and merged, so duplicates collapse and the clean version is
+   written back on the next save. */
+function normalisePlayers(map){
+  const out = {};
+  for(const rec of Object.values(map||{})){
+    const k = playerKey(rec.name, rec.email);
+    const prev = out[k];
+    if(!prev){ out[k] = rec; continue; }
+    const seen = new Set();
+    const history = [...(prev.history||[]), ...(rec.history||[])]
+      .filter(h=>{ const id = h.gw+'|'+h.team+'|'+h.outcome; if(seen.has(id)) return false; seen.add(id); return true; })
+      .sort((a,b)=>a.gw-b.gw);
+    out[k] = {
+      ...prev,
+      status: (prev.status==='out' || rec.status==='out') ? 'out' : 'in',
+      teamsUsedCycle: [...new Set([...(prev.teamsUsedCycle||[]), ...(rec.teamsUsedCycle||[])])],
+      history
+    };
+  }
+  return out;
+}
+function normalisePicks(map){
+  const out = {};
+  for(const rec of Object.values(map||{})){
+    const k = playerKey(rec.name, rec.email);
+    if(!out[k] || (rec.ts||0) > (out[k].ts||0)) out[k] = rec; // latest submission wins
+  }
+  return out;
+}
+async function getPlayersMap(){ return normalisePlayers((await sGet('players')) || {}); }
 async function savePlayersMap(map){ return await sSet('players', map); }
 
 async function getPlayer(name, email){
@@ -441,16 +483,18 @@ async function getPlayer(name, email){
   return map[playerKey(name, email)] || null;
 }
 async function savePlayer(p){
-  const map = await getPlayersMap();
-  map[playerKey(p.name, p.email)] = p;
-  return await savePlayersMap(map);
+  try{
+    const map = await getPlayersMap();
+    map[playerKey(p.name, p.email)] = p;
+    return await savePlayersMap(map);
+  }catch(e){ console.error(e); return false; }
 }
 async function listAllPlayers(){
   const map = await getPlayersMap();
   return Object.values(map);
 }
 
-async function getPicksMap(n){ return (await sGet('picks_'+n)) || {}; }
+async function getPicksMap(n){ return normalisePicks((await sGet('picks_'+n)) || {}); }
 async function savePicksMap(n, map){ return await sSet('picks_'+n, map); }
 
 async function getPick(n, name, email){
@@ -458,9 +502,11 @@ async function getPick(n, name, email){
   return map[playerKey(name, email)] || null;
 }
 async function savePick(n, pick){
-  const map = await getPicksMap(n);
-  map[playerKey(pick.name, pick.email)] = pick;
-  return await savePicksMap(n, map);
+  try{
+    const map = await getPicksMap(n);
+    map[playerKey(pick.name, pick.email)] = pick;
+    return await savePicksMap(n, map);
+  }catch(e){ console.error(e); return false; }
 }
 async function listPicksForGw(n){
   const map = await getPicksMap(n);
@@ -475,6 +521,77 @@ function isEntryOpen(gw){
 function eligibleTeamsFromFixtures(fixtureTeams, player, allTeams){
   const usedFull = player && player.teamsUsedCycle && player.teamsUsedCycle.length >= allTeams.length;
   return fixtureTeams.filter(t => usedFull || !(player && player.teamsUsedCycle && player.teamsUsedCycle.includes(t)));
+}
+
+/* ============================= LOAD-FAILURE HANDLING =============================
+   A failed database read throws (see sGet). These wrappers catch it and tell the
+   user the truth ("couldn't load") instead of showing a misleading empty state. */
+function showLoadError(containerId, retryFn){
+  const el = document.getElementById(containerId);
+  if(!el) return;
+  el.innerHTML = `<div class="card"><h2>Couldn't load</h2><p class="muted">We couldn't reach the database just now. This is usually a temporary connection problem and nobody's entries have been lost. Please try again.</p><button class="btn outline" id="retry-${containerId}">Try again</button></div>`;
+  document.getElementById('retry-'+containerId).addEventListener('click', ()=>retryFn());
+}
+async function renderEnter(){
+  try{ await renderEnterInner(); }
+  catch(e){ console.error(e); showLoadError('enter-content', renderEnter); }
+}
+async function renderStandings(){
+  try{ await renderStandingsInner(); }
+  catch(e){ console.error(e); showLoadError('standings-content', renderStandings); }
+}
+async function renderAdmin(){
+  try{ await renderAdminInner(); }
+  catch(e){ console.error(e); showLoadError('admin-content', renderAdmin); }
+}
+async function renderFixturePicker(gw, open){
+  try{ await renderFixturePickerInner(gw, open); }
+  catch(e){
+    console.error(e);
+    const holder = document.getElementById('ent-fixtures');
+    if(holder){
+      holder.innerHTML = `<div class="statusbanner closed">Couldn't check your entry just now. <button class="linklike" id="retry-fixtures">Try again</button></div>`;
+      document.getElementById('retry-fixtures').addEventListener('click', ()=>renderFixturePicker(gw, open));
+    }
+    const b = document.getElementById('ent-submit'); if(b) b.disabled = true;
+  }
+}
+async function handleSubmitPick(gw){
+  try{ await handleSubmitPickInner(gw); }
+  catch(e){
+    console.error(e);
+    const msg = document.getElementById('ent-msg');
+    if(msg) msg.innerHTML = `<p class="muted" style="color:var(--brick);">Couldn't reach the database, so your pick was NOT saved. Please try again.</p>`;
+    const b = document.getElementById('ent-submit'); if(b) b.disabled = !isEntryOpen(gw);
+  }
+}
+async function renderFixtureRows(){
+  try{ await renderFixtureRowsInner(); }
+  catch(e){
+    console.error(e);
+    const holder = document.getElementById('fixture-rows');
+    if(holder) holder.innerHTML = `<p class="muted" style="color:var(--brick);">Couldn't load the team list. Please refresh and try again.</p>`;
+  }
+}
+async function createGameweek(){
+  try{ await createGameweekInner(); }
+  catch(e){
+    console.error(e);
+    const msg = document.getElementById('gw-create-msg');
+    if(msg) msg.innerHTML = `<p style="color:var(--brick);">Couldn't reach the database, so nothing was changed. Please try again.</p>`;
+  }
+}
+async function endGameweek(n){
+  try{ await endGameweekInner(n); }
+  catch(e){
+    console.error(e);
+    const msg = document.getElementById('end-gw-msg');
+    if(msg) msg.innerHTML = `<p style="color:var(--brick);">Couldn't reach the database, so nothing was changed. Please try again.</p>`;
+  }
+}
+async function downloadPdf(n){
+  try{ await downloadPdfInner(n); }
+  catch(e){ console.error(e); alert("Couldn't load the entries just now. Please try again."); }
 }
 
 /* ============================= TABS ============================= */
@@ -492,7 +609,7 @@ document.querySelectorAll('nav.tabs button').forEach(btn=>{
 /* ============================= ENTER PICKS TAB ============================= */
 let enterState = { name:'', email:'', selectedTeam:null };
 
-async function renderEnter(){
+async function renderEnterInner(){
   const el = document.getElementById('enter-content');
   const config = await getConfig();
   const gw = await getGw(config.currentGw);
@@ -509,6 +626,7 @@ async function renderEnter(){
     <div class="statusbanner ${open?'open':'closed'}">
       ${open ? `Entries close ${fmtDate(gw.deadline)}` : `Entries for Gameweek ${gw.number} are now closed.`}
     </div>
+    ${config.allowNewEntrants === false ? `<p class="muted" style="margin:-6px 0 14px;">This competition is closed to new entrants — only existing players can submit picks.</p>` : ''}
     <div class="row2">
       <div>
         <label for="ent-name">Name</label>
@@ -548,7 +666,7 @@ async function renderEnter(){
   });
 }
 
-async function renderFixturePicker(gw, open){
+async function renderFixturePickerInner(gw, open){
   const holder = document.getElementById('ent-fixtures');
   if(!holder) return;
   const config = await getConfig();
@@ -563,6 +681,15 @@ async function renderFixturePicker(gw, open){
     holder.innerHTML = `<div class="statusbanner out">This entrant is already out of the competition. Thanks for playing!</div>`;
     document.getElementById('ent-submit').disabled = true;
     return;
+  }
+
+  if(email && email.includes('@') && name && !player && config.allowNewEntrants === false){
+    const hasPick = await getPick(gw.number, name, email);
+    if(!hasPick){
+      holder.innerHTML = `<div class="statusbanner closed">We can't find an existing entry under that name and email, and new entrants aren't being accepted at the moment. If you've already entered, check you've typed your name and email exactly as you did before.</div>`;
+      document.getElementById('ent-submit').disabled = true;
+      return;
+    }
   }
 
   let existingPick = null;
@@ -598,7 +725,7 @@ async function renderFixturePicker(gw, open){
   document.getElementById('ent-submit').disabled = !open;
 }
 
-async function handleSubmitPick(gw){
+async function handleSubmitPickInner(gw){
   const msg = document.getElementById('ent-msg');
   msg.innerHTML = '';
   const name = (document.getElementById('ent-name').value||'').trim();
@@ -621,6 +748,13 @@ async function handleSubmitPick(gw){
   // this player's eligibility — never trust a selection made before name/email
   // last changed, or one left over from a previous gameweek.
   const config = await getConfig();
+  if(!player && config.allowNewEntrants === false){
+    const hasPick = await getPick(gw.number, name, email);
+    if(!hasPick){
+      msg.innerHTML = `<p class="muted" style="color:var(--brick);">New entrants aren't being accepted at the moment. If you've already entered, check you've typed your name and email exactly as you did before.</p>`;
+      return;
+    }
+  }
   const fixtureTeamsThisGw = gw.fixtures.flatMap(f=>[f.home, f.away]);
   const isOnFixture = fixtureTeamsThisGw.includes(enterState.selectedTeam);
   const isEligible = eligibleTeamsFromFixtures([enterState.selectedTeam], player, config.teams).length > 0;
@@ -656,7 +790,7 @@ async function handleSubmitPick(gw){
 }
 
 /* ============================= CHECK MY STATUS ============================= */
-document.getElementById('chk-btn').addEventListener('click', async ()=>{
+async function checkStatusInner(){
   const name = document.getElementById('chk-name').value.trim();
   const email = document.getElementById('chk-email').value.trim();
   const box = document.getElementById('chk-result');
@@ -692,10 +826,17 @@ document.getElementById('chk-btn').addEventListener('click', async ()=>{
     ${currentPickLine}
     ${historyRows ? `<table><thead><tr><th>Gameweek</th><th>Team</th><th>Result</th></tr></thead><tbody>${historyRows}</tbody></table>` : '<p class="muted">No pick history yet.</p>'}
   `;
+}
+document.getElementById('chk-btn').addEventListener('click', async ()=>{
+  try{ await checkStatusInner(); }
+  catch(e){
+    console.error(e);
+    document.getElementById('chk-result').innerHTML = `<p class="muted" style="color:var(--brick);">Couldn't reach the database just now. Please try again in a moment.</p>`;
+  }
 });
 
 /* ============================= STANDINGS TAB ============================= */
-async function renderStandings(){
+async function renderStandingsInner(){
   const el = document.getElementById('standings-content');
   el.innerHTML = `<p class="muted">Loading…</p>`;
   const config = await getConfig();
@@ -771,7 +912,7 @@ document.getElementById('admin-login-btn').addEventListener('click', ()=>{
 
 let draftFixtures = [{home:'',away:''}];
 
-async function renderAdmin(){
+async function renderAdminInner(){
   const el = document.getElementById('admin-content');
   const config = await getConfig();
   const gw = await getGw(config.currentGw);
@@ -784,6 +925,35 @@ async function renderAdmin(){
   html += `<div class="card">
     <h2>Gameweek Management</h2>
     ${gw ? `<p class="muted">Current entrant-facing gameweek: <strong>GW${gw.number}</strong> — status: ${gw.status}${gw.ended?' (ended)':''}</p>` : `<p class="muted">No gameweek has been created yet.</p>`}
+  </div>`;
+
+  // Contact list — for weekly reminder emails, since entrants can pass their
+  // spot to someone else you'd otherwise have no record of.
+  const stillInEmails = [...new Set(allPlayers.filter(p=>p.status==='in').map(p=>normEmail(p.email)).filter(Boolean))];
+  const allEmails = [...new Set(allPlayers.map(p=>normEmail(p.email)).filter(Boolean))];
+  html += `<div class="card">
+    <h2>Contact List</h2>
+    <p class="muted" style="margin-top:-6px;">Deduplicated email addresses, ready to paste into a BCC field. Someone still in the game but not in your own contacts — e.g. a friend an entrant passed their spot to — will show up here.</p>
+    <label for="emails-in">Still In (${stillInEmails.length})</label>
+    <textarea id="emails-in" readonly style="width:100%; min-height:70px; font-family:'Inter',sans-serif; font-size:13px; padding:10px; border:1px solid var(--line); border-radius:5px; margin-bottom:8px;">${esc(stillInEmails.join('; '))}</textarea>
+    <button class="btn outline" id="copy-in-btn">Copy Still-In Emails</button>
+    <div id="copy-in-msg" style="margin-top:6px;"></div>
+    <hr class="hair">
+    <label for="emails-all">All Entrants Ever (${allEmails.length})</label>
+    <textarea id="emails-all" readonly style="width:100%; min-height:70px; font-family:'Inter',sans-serif; font-size:13px; padding:10px; border:1px solid var(--line); border-radius:5px; margin-bottom:8px;">${esc(allEmails.join('; '))}</textarea>
+    <button class="btn outline" id="copy-all-btn">Copy All Emails</button>
+    <div id="copy-all-msg" style="margin-top:6px;"></div>
+  </div>`;
+
+  const acceptingNew = config.allowNewEntrants !== false;
+  html += `<div class="card">
+    <h2>New Entrants</h2>
+    <p class="muted" style="margin-top:-6px;">Currently: <strong>${acceptingNew ? 'accepting new entrants' : 'existing players only'}</strong>.
+    ${acceptingNew
+      ? 'Anyone can enter with a new name and email. Turn this off once the first gameweek is under way so nobody can join mid-game.'
+      : 'Only names and emails already in the game can submit a pick. This also stops a knocked-out player re-entering under a different spelling or email. Turn it back on for a rollover or a fresh start.'}</p>
+    <button class="btn ${acceptingNew ? 'outline' : 'gold'}" id="toggle-entrants-btn">${acceptingNew ? 'Stop accepting new entrants' : 'Accept new entrants again'}</button>
+    <div id="entrants-msg" style="margin-top:6px;"></div>
   </div>`;
 
   if(prevEnded){
@@ -818,9 +988,9 @@ async function renderAdmin(){
 
     html += `<div class="card">
       <h2>Gameweek ${gw.number} Entries (${picks.length}${inCount?` of ${inCount} eligible`:''})</h2>
-      <table><thead><tr><th>Name</th><th>Email</th><th>Pick</th><th>Time</th></tr></thead>
+      <table><thead><tr><th>Name</th><th>Email</th><th>Pick</th><th>Time</th><th></th></tr></thead>
       <tbody>
-        ${picks.sort((a,b)=>a.name.localeCompare(b.name)).map(p=>`<tr><td>${esc(p.name)}</td><td>${esc(p.email)}</td><td>${esc(p.team)}</td><td>${new Date(p.ts).toLocaleString('en-GB')}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">No entries yet.</td></tr>'}
+        ${picks.sort((a,b)=>a.name.localeCompare(b.name)).map(p=>`<tr><td>${esc(p.name)}${idTag(p)}</td><td>${esc(p.email)}</td><td>${esc(p.team)}</td><td>${new Date(p.ts).toLocaleString('en-GB')}</td><td>${!gw.ended ? `<button class="smallbtn" data-remove-pick="${esc(playerKey(p.name,p.email))}">Remove pick</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">No entries yet.</td></tr>'}
       </tbody></table>
       ${!gw.ended && missingCount>0 ? `<p class="muted" style="margin-top:10px;">${missingCount} eligible player(s) haven't submitted a pick yet. Deadlines are automatic — anyone still eligible with no pick when you end this gameweek will be knocked out.</p>` : ''}
     </div>`;
@@ -852,7 +1022,7 @@ async function renderAdmin(){
   // Player admin table
   html += `<div class="card">
     <h2>All Players</h2>
-    <table><thead><tr><th>Name</th><th>Email</th><th>Status</th><th>History</th></tr></thead>
+    <table><thead><tr><th>Name</th><th>Email</th><th>Status</th><th>History</th><th></th></tr></thead>
     <tbody id="admin-players-body"></tbody></table>
   </div>`;
 
@@ -863,6 +1033,15 @@ async function renderAdmin(){
     <textarea id="teams-editor" style="width:100%; min-height:160px; font-family:'Inter',sans-serif; padding:10px; border:1px solid var(--line); border-radius:5px;">${config.teams.join('\n')}</textarea>
     <button class="btn outline" id="save-teams-btn" style="margin-top:8px;">Save Team List</button>
     <div id="teams-save-msg"></div>
+  </div>`;
+
+  html += `<div class="card">
+    <h2>Repair: Set Current Gameweek</h2>
+    <p class="muted" style="margin-top:-6px;">If Enter Picks ever says "no gameweek" while entries still show here, the site's pointer to the current gameweek has been lost. Enter the gameweek number it should be showing (the stored pointer is currently <strong>${config.currentGw||0}</strong>) and this re-points it without touching any picks or fixtures.</p>
+    <label for="repair-gw">Gameweek number</label>
+    <input type="number" id="repair-gw" min="1" value="${config.currentGw||1}" style="width:100%; padding:10px 11px; border:1px solid var(--line); border-radius:5px; font-size:14.5px; margin-bottom:14px;">
+    <button class="btn outline" id="repair-gw-btn">Set Current Gameweek</button>
+    <div id="repair-gw-msg" style="margin-top:6px;"></div>
   </div>`;
 
   html += `<div class="card">
@@ -879,11 +1058,46 @@ async function renderAdmin(){
   el.innerHTML = html;
 
   // wire up
+  async function copyToClipboard(textareaId, msgId){
+    const ta = document.getElementById(textareaId);
+    const msgEl = document.getElementById(msgId);
+    try{
+      await navigator.clipboard.writeText(ta.value);
+      msgEl.innerHTML = `<p style="color:var(--pitch);">Copied to clipboard.</p>`;
+    }catch(e){
+      ta.select();
+      msgEl.innerHTML = `<p class="muted">Couldn't auto-copy — the text is selected, press Ctrl+C (or Cmd+C on Mac).</p>`;
+    }
+  }
+  document.getElementById('copy-in-btn').addEventListener('click', ()=>copyToClipboard('emails-in','copy-in-msg'));
+  document.getElementById('copy-all-btn').addEventListener('click', ()=>copyToClipboard('emails-all','copy-all-msg'));
+  document.getElementById('toggle-entrants-btn').addEventListener('click', async ()=>{
+    const m = document.getElementById('entrants-msg');
+    try{
+      const c = await getConfig();
+      c.allowNewEntrants = (c.allowNewEntrants === false); // flip
+      const ok = await saveConfig(c);
+      if(!ok){ m.innerHTML = `<p style="color:var(--brick);">Couldn't save due to a connection problem. Please try again.</p>`; return; }
+      renderAdmin();
+    }catch(e){
+      console.error(e);
+      m.innerHTML = `<p style="color:var(--brick);">Couldn't reach the database, so nothing was changed. Please try again.</p>`;
+    }
+  });
+
   const playersBody = document.getElementById('admin-players-body');
   playersBody.innerHTML = allPlayers.sort((a,b)=>a.name.localeCompare(b.name)).map(p=>`
-    <tr><td>${esc(p.name)}</td><td>${esc(p.email)}</td><td><span class="pill ${p.status==='in'?'in':'out'}">${p.status==='in'?'In':'Out'}</span></td>
-    <td>${p.history.map(h=>`GW${h.gw}: ${esc(h.team)} (${h.outcome})`).join(', ') || '—'}</td></tr>
-  `).join('') || `<tr><td colspan="4" class="muted">No players yet.</td></tr>`;
+    <tr><td>${esc(p.name)}${idTag(p)}</td><td>${esc(p.email)}</td><td><span class="pill ${p.status==='in'?'in':'out'}">${p.status==='in'?'In':'Out'}</span></td>
+    <td>${p.history.map(h=>`GW${h.gw}: ${esc(h.team)} (${h.outcome})`).join(', ') || '—'}</td>
+    <td><button class="smallbtn" data-remove-player="${esc(playerKey(p.name,p.email))}">Remove player</button></td></tr>
+  `).join('') || `<tr><td colspan="5" class="muted">No players yet.</td></tr>`;
+
+  document.querySelectorAll('[data-remove-pick]').forEach(btn=>{
+    btn.addEventListener('click', ()=>removePickAction(gw.number, btn.dataset.removePick));
+  });
+  document.querySelectorAll('[data-remove-player]').forEach(btn=>{
+    btn.addEventListener('click', ()=>removePlayerAction(btn.dataset.removePlayer));
+  });
 
   if(prevEnded){
     await renderFixtureRows();
@@ -909,27 +1123,56 @@ async function renderAdmin(){
 
   document.getElementById('save-teams-btn').addEventListener('click', async ()=>{
     const lines = document.getElementById('teams-editor').value.split('\n').map(s=>s.trim()).filter(Boolean);
-    const c = await getConfig();
-    c.teams = lines;
-    await saveConfig(c);
-    document.getElementById('teams-save-msg').innerHTML = `<p style="color:var(--pitch);">Saved.</p>`;
+    const tmsg = document.getElementById('teams-save-msg');
+    try{
+      const c = await getConfig();
+      c.teams = lines;
+      const ok = await saveConfig(c);
+      tmsg.innerHTML = ok ? `<p style="color:var(--pitch);">Saved.</p>` : `<p style="color:var(--brick);">Couldn't save due to a connection problem. Please try again.</p>`;
+    }catch(e){
+      console.error(e);
+      tmsg.innerHTML = `<p style="color:var(--brick);">Couldn't reach the database, so nothing was changed. Please try again.</p>`;
+    }
+  });
+
+  document.getElementById('repair-gw-btn').addEventListener('click', async ()=>{
+    const rmsg = document.getElementById('repair-gw-msg');
+    const n = parseInt(document.getElementById('repair-gw').value, 10);
+    if(!n || n < 1){ rmsg.innerHTML = `<p style="color:var(--brick);">Enter a valid gameweek number.</p>`; return; }
+    try{
+      const target = await getGw(n);
+      if(!target){ rmsg.innerHTML = `<p style="color:var(--brick);">No gameweek ${n} found in the database, so nothing was changed.</p>`; return; }
+      const c = await getConfig();
+      c.currentGw = n;
+      const ok = await saveConfig(c);
+      if(!ok){ rmsg.innerHTML = `<p style="color:var(--brick);">Couldn't save due to a connection problem. Please try again.</p>`; return; }
+      renderAdmin();
+    }catch(e){
+      console.error(e);
+      rmsg.innerHTML = `<p style="color:var(--brick);">Couldn't reach the database, so nothing was changed. Please try again.</p>`;
+    }
   });
 
   document.getElementById('reset-all-btn').addEventListener('click', async ()=>{
     if(!confirm('This will permanently delete all players, picks and gameweeks. Continue?')) return;
-    const c = await getConfig();
-    const last = c.currentGw || 0;
-    await sDelete('players');
-    for(let i=1;i<=last;i++){
-      await sDelete('gw_'+i);
-      await sDelete('picks_'+i);
+    try{
+      const c = await getConfig();
+      // Sweep a full season's worth of gameweek slots, so nothing orphaned survives
+      // even if the stored pointer had drifted.
+      const last = Math.max(c.currentGw || 0, 38);
+      const keys = ['players'];
+      for(let i=1;i<=last;i++){ keys.push('gw_'+i, 'picks_'+i); }
+      await Promise.all(keys.map(k=>sDelete(k)));
+      await saveConfig({ teams: DEFAULT_TEAMS.slice(), currentGw: 0 });
+      renderAdmin();
+    }catch(e){
+      console.error(e);
+      alert("Couldn't reach the database, so nothing was reset. Please try again.");
     }
-    await saveConfig({ teams: DEFAULT_TEAMS.slice(), currentGw: 0 });
-    renderAdmin();
   });
 }
 
-async function renderFixtureRows(){
+async function renderFixtureRowsInner(){
   const holder = document.getElementById('fixture-rows');
   const config = await getConfig();
   const teams = config.teams;
@@ -986,7 +1229,7 @@ function updateDeadlinePreview(){
   preview.textContent = `Entries close: ${fmtDate(deadline.toISOString())}`;
 }
 
-async function createGameweek(){
+async function createGameweekInner(){
   const msg = document.getElementById('gw-create-msg');
   const fixtures = draftFixtures.filter(f=>f.home.trim() && f.away.trim())
     .map(f=>({home:f.home.trim(), away:f.away.trim()}));
@@ -1010,6 +1253,11 @@ async function createGameweek(){
 
   const config = await getConfig();
   const number = (config.currentGw||0) + 1;
+  const existing = await getGw(number);
+  if(existing){
+    msg.innerHTML = `<p style="color:var(--brick);">Gameweek ${number} already exists in the database, so it hasn't been overwritten. If the site is showing "no gameweek", use "Set Current Gameweek" under Repair (lower down this page) instead.</p>`;
+    return;
+  }
   const gw = { number, fixtures, deadline: deadlineIso, status:'open', ended:false, results:null };
   const gwOk = await saveGw(gw);
   if(!gwOk){ msg.innerHTML = `<p style="color:var(--brick);">Couldn't save due to a connection problem. Please try again.</p>`; return; }
@@ -1019,6 +1267,52 @@ async function createGameweek(){
   draftFixtures = [{home:'',away:''}];
   msg.innerHTML = `<p style="color:var(--pitch);">Gameweek ${number} created and open for entries.</p>`;
   renderAdmin();
+}
+
+/* Small muted id under a name in the admin tables. Two rows that look identical but
+   have different ids are different entrants as far as the app is concerned. */
+function idTag(p){
+  return `<div class="muted" style="font-size:11px; word-break:break-all;">id: ${esc(playerKey(p.name, p.email))}</div>`;
+}
+
+/* Remove one gameweek pick (the player stays in the game, but will count as a
+   non-submitter if they don't pick again before the gameweek is ended). */
+async function removePickAction(n, key){
+  try{
+    const map = await getPicksMap(n);
+    const rec = map[key];
+    if(!rec){ renderAdmin(); return; }
+    if(!confirm(`Remove ${rec.name}'s Gameweek ${n} pick (${rec.team})?\n\nThey stay in the game, but unless they pick again before the deadline they'll be knocked out when you end the gameweek.`)) return;
+    delete map[key];
+    const ok = await savePicksMap(n, map);
+    if(!ok){ alert("Couldn't save due to a connection problem. Nothing was removed — please try again."); return; }
+    renderAdmin();
+  }catch(e){ console.error(e); alert("Couldn't reach the database, so nothing was removed. Please try again."); }
+}
+
+/* Remove a player entirely: their record, history and every pick they've made.
+   Picks go first, the player record last, so a failure part-way leaves a visible
+   row to retry rather than an orphaned pick. */
+async function removePlayerAction(key){
+  try{
+    const players = await getPlayersMap();
+    const p = players[key];
+    if(!p){ renderAdmin(); return; }
+    if(!confirm(`Remove ${p.name} (${p.email}) completely?\n\nThis deletes their player record, their history and ALL their picks in every gameweek. It can't be undone.\n\nUse this for duplicates or entries made in error — not to knock someone out.`)) return;
+    const config = await getConfig();
+    for(let n=1; n<=(config.currentGw||0); n++){
+      const pm = await getPicksMap(n);
+      if(pm[key]){
+        delete pm[key];
+        const okp = await savePicksMap(n, pm);
+        if(!okp){ alert("Couldn't save due to a connection problem. Only part of the removal went through — please try again."); renderAdmin(); return; }
+      }
+    }
+    delete players[key];
+    const ok = await savePlayersMap(players);
+    if(!ok){ alert("Their picks were removed but the player record couldn't be — please try again."); renderAdmin(); return; }
+    renderAdmin();
+  }catch(e){ console.error(e); alert("Couldn't reach the database, so nothing was removed. Please try again."); }
 }
 
 function renderResultsRows(gw){
@@ -1057,7 +1351,7 @@ function eliminateNonSubmittersInMemory(n, playersMap, picksMap){
   return eliminated;
 }
 
-async function endGameweek(n){
+async function endGameweekInner(n){
   const msg = document.getElementById('end-gw-msg');
   const gw = await getGw(n);
   const config = await getConfig();
@@ -1114,7 +1408,7 @@ async function endGameweek(n){
 }
 
 /* ============================= PDF EXPORT ============================= */
-async function downloadPdf(n){
+async function downloadPdfInner(n){
   const gw = await getGw(n);
   const picks = (await listPicksForGw(n)).sort((a,b)=>a.name.localeCompare(b.name));
   const { jsPDF } = window.jspdf;
